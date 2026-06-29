@@ -20,6 +20,7 @@ import {
   ChevronDown, X, Star, Download, ChevronRight, ChevronLeft,
   Package, TrendingUp, BarChart2, Layers, CalendarDays, Phone,
   MessageSquare, Building2, MapPin, FileText, Check,
+  AlertTriangle, ImageIcon, ImageOff, Ban,
 } from "lucide-react";
 
 const ALL_COLORS = [
@@ -540,6 +541,16 @@ export default function ProductsList() {
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [page, setPage] = useState(1);
 
+  type AlertType = "low_stock" | "no_image" | "no_description" | "inactive" | null;
+  const [alertFilter, setAlertFilter] = useState<AlertType>(null);
+
+  const alerts = useMemo(() => ({
+    lowStock: products.filter(p => p.quantity > 0 && p.quantity <= 10).length,
+    noImage: products.filter(p => !p.mainImage || p.mainImage.trim() === "").length,
+    noDescription: products.filter(p => !p.description || p.description.trim() === "").length,
+    inactive: products.filter(p => p.status === "hidden").length,
+  }), [products]);
+
   const maxPrice = useMemo(() => Math.max(...products.map(p => p.price), 0), [products]);
   const [priceRange, setPriceRange] = useState<[number, number]>([0, maxPrice]);
   const effectiveMax = maxPrice || 1000;
@@ -572,9 +583,14 @@ export default function ProductsList() {
       const created = new Date(p.createdAt).getTime();
       const matchesDateFrom = !dateFrom || created >= new Date(dateFrom).getTime();
       const matchesDateTo = !dateTo || created <= new Date(dateTo + "T23:59:59").getTime();
+      let matchesAlert = true;
+      if (alertFilter === "low_stock") matchesAlert = p.quantity > 0 && p.quantity <= 10;
+      else if (alertFilter === "no_image") matchesAlert = !p.mainImage || p.mainImage.trim() === "";
+      else if (alertFilter === "no_description") matchesAlert = !p.description || p.description.trim() === "";
+      else if (alertFilter === "inactive") matchesAlert = p.status === "hidden";
       return matchesSearch && matchesCategory && matchesSubCategory && matchesStatus &&
         matchesSupplier && matchesPrice && matchesColor && matchesSize && matchesRating &&
-        matchesDateFrom && matchesDateTo;
+        matchesDateFrom && matchesDateTo && matchesAlert;
     });
     list = [...list].sort((a, b) => {
       switch (sortBy) {
@@ -590,7 +606,7 @@ export default function ProductsList() {
     });
     return list;
   }, [products, search, categoryFilter, subCategoryFilter, statusFilter, supplierFilter,
-    priceRange, effectiveMax, selectedColors, selectedSizes, minRating, dateFrom, dateTo, sortBy]);
+    priceRange, effectiveMax, selectedColors, selectedSizes, minRating, dateFrom, dateTo, sortBy, alertFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filteredAndSorted.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -612,7 +628,7 @@ export default function ProductsList() {
   const toggleSize = (size: string) =>
     setSelectedSizes(prev => prev.includes(size) ? prev.filter(s => s !== size) : [...prev, size]);
 
-  const hasActiveFilters = selectedColors.length > 0 || selectedSizes.length > 0 ||
+  const hasActiveFilters = alertFilter !== null || selectedColors.length > 0 || selectedSizes.length > 0 ||
     priceRange[0] > 0 || priceRange[1] < effectiveMax || minRating > 0 ||
     !!dateFrom || !!dateTo || supplierFilter !== "all" || subCategoryFilter !== "all";
 
@@ -622,6 +638,7 @@ export default function ProductsList() {
     setSelectedColors([]); setSelectedSizes([]);
     setPriceRange([0, effectiveMax]); setMinRating(0);
     setDateFrom(""); setDateTo(""); setSortBy("newest"); setPage(1);
+    setAlertFilter(null);
   };
 
   const confirmDelete = () => {
@@ -669,6 +686,62 @@ export default function ProductsList() {
             <Plus className="h-4 w-4 ml-2" />
             إضافة منتج
           </Button>
+        </div>
+      </div>
+
+      {/* Alert Cards */}
+      <div className="overflow-x-auto pb-1">
+        <div className="flex gap-3 min-w-max">
+          {[
+            {
+              key: "low_stock" as const,
+              label: "أوشكت على النفاد",
+              count: alerts.lowStock,
+              icon: <AlertTriangle className="h-4 w-4" />,
+              color: "text-orange-500",
+              bg: "bg-orange-500/10 border-orange-500/20 hover:bg-orange-500/15",
+              activeBg: "bg-orange-500/20 border-orange-500/40",
+            },
+            {
+              key: "no_image" as const,
+              label: "بدون صور",
+              count: alerts.noImage,
+              icon: <ImageOff className="h-4 w-4" />,
+              color: "text-blue-500",
+              bg: "bg-blue-500/10 border-blue-500/20 hover:bg-blue-500/15",
+              activeBg: "bg-blue-500/20 border-blue-500/40",
+            },
+            {
+              key: "no_description" as const,
+              label: "بدون وصف",
+              count: alerts.noDescription,
+              icon: <Ban className="h-4 w-4" />,
+              color: "text-purple-500",
+              bg: "bg-purple-500/10 border-purple-500/20 hover:bg-purple-500/15",
+              activeBg: "bg-purple-500/20 border-purple-500/40",
+            },
+            {
+              key: "inactive" as const,
+              label: "غير نشطة",
+              count: alerts.inactive,
+              icon: <EyeOff className="h-4 w-4" />,
+              color: "text-red-500",
+              bg: "bg-red-500/10 border-red-500/20 hover:bg-red-500/15",
+              activeBg: "bg-red-500/20 border-red-500/40",
+            },
+          ].map((alert) => (
+            <button
+              key={alert.key}
+              onClick={() => setAlertFilter(alertFilter === alert.key ? null : alert.key)}
+              className={`flex items-center gap-3 border rounded-lg px-4 py-2.5 shrink-0 transition-all cursor-pointer ${
+                alertFilter === alert.key ? alert.activeBg : alert.bg
+              }`}
+            >
+              <span className={alert.color}>{alert.icon}</span>
+              <span className="text-sm font-medium whitespace-nowrap">{alert.label}</span>
+              <span className={`text-lg font-bold ${alert.color}`}>{alert.count}</span>
+            </button>
+          ))}
         </div>
       </div>
 
@@ -919,8 +992,17 @@ export default function ProductsList() {
           </div>
 
           {/* Active chips */}
-          {(selectedColors.length > 0 || selectedSizes.length > 0 || minRating > 0 || dateFrom || dateTo || subCategoryFilter !== "all" || supplierFilter !== "all") && (
+          {(alertFilter !== null || selectedColors.length > 0 || selectedSizes.length > 0 || minRating > 0 || dateFrom || dateTo || subCategoryFilter !== "all" || supplierFilter !== "all") && (
             <div className="flex flex-wrap gap-2">
+              {alertFilter && (
+                <Badge variant="secondary" className="gap-1.5 pr-1">
+                  {alertFilter === "low_stock" && "أوشكت على النفاد"}
+                  {alertFilter === "no_image" && "بدون صور"}
+                  {alertFilter === "no_description" && "بدون وصف"}
+                  {alertFilter === "inactive" && "غير نشطة"}
+                  <button onClick={() => setAlertFilter(null)} className="hover:text-foreground text-muted-foreground"><X className="h-3 w-3" /></button>
+                </Badge>
+              )}
               {selectedColors.map(c => {
                 const color = ALL_COLORS.find(col => col.name === c);
                 return <Badge key={c} variant="secondary" className="gap-1.5 pr-1">
