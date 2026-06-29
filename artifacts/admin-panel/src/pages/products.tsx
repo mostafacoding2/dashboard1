@@ -70,14 +70,23 @@ function StarRow({ rating, count }: { rating: number; count: number }) {
   );
 }
 
+function toLocalDateInput(date: Date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 function TodayProductsDrawer({ onClose }: { onClose: () => void }) {
   const products = useProducts();
   const [, setLocation] = useLocation();
 
-  const todayStr = new Date().toDateString();
-  const todayProducts = products.filter(
-    (p) => new Date(p.createdAt).toDateString() === todayStr
-  );
+  const [selectedDate, setSelectedDate] = useState(toLocalDateInput(new Date()));
+
+  const filteredProducts = products.filter((p) => {
+    const pDate = toLocalDateInput(new Date(p.createdAt));
+    return pDate === selectedDate;
+  });
 
   const [editingImg, setEditingImg] = useState<{ productId: string; index: number | "main"; url: string } | null>(null);
 
@@ -116,25 +125,47 @@ function TodayProductsDrawer({ onClose }: { onClose: () => void }) {
     <Sheet open onOpenChange={(open) => !open && onClose()}>
       <SheetContent side="left" className="w-full sm:max-w-[560px] p-0 overflow-y-auto flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b sticky top-0 bg-background z-10">
-          <div className="flex items-center gap-2">
-            <CalendarDays className="h-5 w-5 text-primary" />
-            <h2 className="text-lg font-bold">منتجات اليوم</h2>
-            <Badge className="bg-primary text-primary-foreground">{todayProducts.length}</Badge>
+        <div className="flex flex-col gap-3 p-4 border-b sticky top-0 bg-background z-10">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <CalendarDays className="h-5 w-5 text-primary" />
+              <h2 className="text-lg font-bold">منتجات اليوم</h2>
+              <Badge className="bg-primary text-primary-foreground">{filteredProducts.length}</Badge>
+            </div>
+            {selectedDate !== toLocalDateInput(new Date()) && (
+              <button
+                onClick={() => setSelectedDate(toLocalDateInput(new Date()))}
+                className="text-xs text-primary underline underline-offset-2 hover:no-underline">
+                العودة لليوم
+              </button>
+            )}
           </div>
-          <span className="text-xs text-muted-foreground">
-            {new Date().toLocaleDateString("ar-EG", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
-          </span>
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-muted-foreground whitespace-nowrap">اختر التاريخ:</label>
+            <Input
+              type="date"
+              value={selectedDate}
+              max={toLocalDateInput(new Date())}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="h-8 text-sm flex-1"
+            />
+            <span className="text-xs text-muted-foreground whitespace-nowrap">
+              {new Date(selectedDate + "T00:00:00").toLocaleDateString("ar-EG", { weekday: "short", month: "short", day: "numeric" })}
+            </span>
+          </div>
         </div>
 
-        {todayProducts.length === 0 ? (
+        {filteredProducts.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center p-8">
             <CalendarDays className="h-12 w-12 text-muted-foreground/30" />
-            <p className="text-muted-foreground">لا توجد منتجات أُضيفت اليوم</p>
+            <p className="text-muted-foreground">لا توجد منتجات أُضيفت في هذا التاريخ</p>
+            <button onClick={() => setSelectedDate(toLocalDateInput(new Date()))} className="text-xs text-primary underline">
+              عرض منتجات اليوم
+            </button>
           </div>
         ) : (
           <div className="flex-1 divide-y">
-            {todayProducts.map((product) => {
+            {filteredProducts.map((product) => {
               const rating = avgRating(product.reviews);
               const allImages: { url: string; index: number | "main" }[] = [
                 { url: product.mainImage, index: "main" },
