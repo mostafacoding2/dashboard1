@@ -111,6 +111,17 @@ export default function ProductsList() {
   const toggleSize = (size: string) =>
     setSelectedSizes(prev => prev.includes(size) ? prev.filter(s => s !== size) : [...prev, size]);
 
+  const stats = useMemo(() => ({
+    total: products.length,
+    active: products.filter(p => p.status === "active").length,
+    hidden: products.filter(p => p.status === "hidden").length,
+    totalStock: products.reduce((s, p) => s + p.quantity, 0),
+    totalViews: products.reduce((s, p) => s + p.views, 0),
+    totalSales: products.reduce((s, p) => s + p.sales, 0),
+    unsold: products.filter(p => p.sales === 0).length,
+    totalReviews: products.reduce((s, p) => s + p.reviews.length, 0),
+  }), [products]);
+
   const hasActiveFilters = selectedColors.length > 0 || selectedSizes.length > 0 ||
     priceRange[0] > 0 || priceRange[1] < effectiveMax || minRating > 0 ||
     dateFrom || dateTo || supplierFilter !== "all" || subCategoryFilter !== "all";
@@ -135,6 +146,27 @@ export default function ProductsList() {
           <Plus className="h-4 w-4 ml-2" />
           إضافة منتج
         </Button>
+      </div>
+
+      {/* Stats bar */}
+      <div className="overflow-x-auto pb-1">
+        <div className="flex gap-3 min-w-max">
+          {[
+            { label: "إجمالي المنتجات", value: stats.total, color: "text-foreground" },
+            { label: "المفعّل", value: stats.active, color: "text-green-500" },
+            { label: "الغير مفعّل", value: stats.hidden, color: "text-orange-400" },
+            { label: "المخزون الكلي", value: stats.totalStock.toLocaleString("ar-EG"), color: "text-foreground" },
+            { label: "المشاهدات", value: stats.totalViews.toLocaleString("ar-EG"), color: "text-foreground" },
+            { label: "المبيعات", value: stats.totalSales.toLocaleString("ar-EG"), color: "text-foreground" },
+            { label: "بدون مبيعات", value: stats.unsold, color: stats.unsold > 0 ? "text-destructive" : "text-foreground" },
+            { label: "التقييمات", value: stats.totalReviews.toLocaleString("ar-EG"), color: "text-foreground" },
+          ].map((s) => (
+            <div key={s.label} className="flex items-center gap-3 bg-card border border-border rounded-lg px-4 py-2.5 shrink-0">
+              <span className="text-xs text-muted-foreground whitespace-nowrap">{s.label}</span>
+              <span className={`text-base font-bold ${s.color}`}>{s.value}</span>
+            </div>
+          ))}
+        </div>
       </div>
 
       <Card>
