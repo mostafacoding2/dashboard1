@@ -396,7 +396,7 @@ export default function ProductsList() {
             { label: "المفعّل", value: stats.active, color: "text-green-500", icon: <TrendingUp className="h-3.5 w-3.5" /> },
             { label: "الغير مفعّل", value: stats.hidden, color: "text-orange-400", icon: <EyeOff className="h-3.5 w-3.5" /> },
             { label: "المخزون الكلي", value: stats.totalStock.toLocaleString("ar-EG"), color: "text-foreground", icon: <Layers className="h-3.5 w-3.5" /> },
-            { label: "المشاهدات", value: stats.totalViews.toLocaleString("ar-EG"), color: "text-foreground", icon: <Eye className="h-3.5 w-3.5" /> },
+            { label: "إجمالي الزيارات", value: stats.totalViews.toLocaleString("ar-EG"), color: "text-foreground", icon: <Eye className="h-3.5 w-3.5" /> },
             { label: "المبيعات", value: stats.totalSales.toLocaleString("ar-EG"), color: "text-foreground", icon: <BarChart2 className="h-3.5 w-3.5" /> },
             { label: "بدون مبيعات", value: stats.unsold, color: stats.unsold > 0 ? "text-destructive" : "text-foreground", icon: <Package className="h-3.5 w-3.5" /> },
             { label: "التقييمات", value: stats.totalReviews.toLocaleString("ar-EG"), color: "text-foreground", icon: <Star className="h-3.5 w-3.5" /> },
