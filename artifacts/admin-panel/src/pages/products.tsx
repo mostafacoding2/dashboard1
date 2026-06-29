@@ -495,7 +495,6 @@ export default function ProductsList() {
                   <TableHead className="w-[60px]">صورة</TableHead>
                   <TableHead>المنتج</TableHead>
                   <TableHead>SKU</TableHead>
-                  <TableHead>القسم</TableHead>
                   <TableHead>السعر</TableHead>
                   <TableHead>المخزون</TableHead>
                   <TableHead>المبيعات</TableHead>
@@ -507,7 +506,7 @@ export default function ProductsList() {
               <TableBody>
                 {filteredAndSorted.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={10} className="h-24 text-center text-muted-foreground">
+                    <TableCell colSpan={9} className="h-24 text-center text-muted-foreground">
                       لا توجد منتجات مطابقة للفلاتر المحددة.
                     </TableCell>
                   </TableRow>
@@ -523,10 +522,14 @@ export default function ProductsList() {
                         </TableCell>
                         <TableCell>
                           <div className="font-medium">{product.name}</div>
-                          <div className="text-xs text-muted-foreground">{product.subCategory}</div>
+                          <div className="text-xs text-muted-foreground mt-0.5">
+                            {product.category}
+                            {product.subCategory && (
+                              <span> · {product.subCategory}</span>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="text-right text-muted-foreground text-sm">{product.sku}</TableCell>
-                        <TableCell className="text-right text-sm">{product.category}</TableCell>
                         <TableCell className="text-right font-medium">{product.price} ج.م</TableCell>
                         <TableCell className="text-right">
                           <span className={product.quantity < 15 ? "text-destructive font-medium" : ""}>
