@@ -235,7 +235,7 @@ function makeProduct(i: number): Product {
     supplier: sup,
     views: 200 + i * 47,
     sales: 10 + i * 5,
-    createdAt: new Date(2025, (i % 6) + 1, (i % 27) + 1).toISOString(),
+    createdAt: i < 3 ? new Date().toISOString() : new Date(2025, (i % 6) + 1, (i % 27) + 1).toISOString(),
     reviews,
   };
 }
