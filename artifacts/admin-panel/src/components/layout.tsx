@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Package, Truck, Menu, Bell, Search, User, ArrowUpDown } from "lucide-react";
+import { LayoutDashboard, Package, Truck, Menu, Bell, Search, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -8,7 +8,6 @@ const navItems = [
   { href: "/", label: "لوحة التحكم", icon: LayoutDashboard },
   { href: "/products", label: "المنتجات", icon: Package },
   { href: "/suppliers", label: "الموردون", icon: Truck },
-  { href: "/compare", label: "جدول البينيه", icon: ArrowUpDown },
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {

@@ -8,7 +8,6 @@ import Dashboard from "@/pages/dashboard";
 import ProductsList from "@/pages/products";
 import ProductDetail from "@/pages/product-detail";
 import Suppliers from "@/pages/suppliers";
-import Compare from "@/pages/compare";
 
 const queryClient = new QueryClient();
 
@@ -19,7 +18,6 @@ function Router() {
       <Route path="/products" component={ProductsList} />
       <Route path="/products/:id" component={ProductDetail} />
       <Route path="/suppliers" component={Suppliers} />
-      <Route path="/compare" component={Compare} />
       <Route component={NotFound} />
     </Switch>
   );

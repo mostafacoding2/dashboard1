@@ -18,7 +18,7 @@ import { Separator } from "@/components/ui/separator";
 import {
   Eye, EyeOff, Edit, Trash2, MoreHorizontal, Plus, Search,
   ChevronDown, X, Star, Download, ChevronRight, ChevronLeft,
-  Package, TrendingUp, BarChart2, Layers, ArrowUpDown,
+  Package, TrendingUp, BarChart2, Layers,
 } from "lucide-react";
 
 const ALL_COLORS = [
@@ -417,16 +417,6 @@ export default function ProductsList() {
           <div className="flex gap-2 mr-auto flex-wrap">
             <Button size="sm" variant="outline" onClick={bulkActivate}>تنشيط الكل</Button>
             <Button size="sm" variant="outline" onClick={bulkHide}>إخفاء الكل</Button>
-            {selectedIds.size >= 2 && selectedIds.size <= 4 && (
-              <Button size="sm" variant="outline"
-                onClick={() => {
-                  const ids = [...selectedIds].slice(0, 4).join(",");
-                  setLocation(`/compare?ids=${ids}`);
-                }}>
-                <ArrowUpDown className="h-3.5 w-3.5 ml-1" />
-                قارن ({selectedIds.size})
-              </Button>
-            )}
             <Button size="sm" variant="destructive" onClick={() => setBulkDeleteOpen(true)}>
               <Trash2 className="h-3.5 w-3.5 ml-1" />
               حذف المحدد
