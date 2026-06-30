@@ -1,16 +1,17 @@
-import { useState, useMemo, useRef } from "react";
-import { Link, useLocation, useParams } from "wouter";
+import { useState, useMemo } from "react";
+import { useParams, useLocation } from "wouter";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 import PptxGenJS from "pptxgenjs";
-import { useProducts, adminStore, categoriesList, suppliersList } from "@/store";
+import { useSuppliers, useProducts, adminStore, categoriesList } from "@/store";
 import type { Product } from "@/store";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -107,7 +108,6 @@ async function exportPowerPoint(products: Product[]) {
   const pptx = new PptxGenJS();
   pptx.layout = "LAYOUT_WIDE";
 
-  // Helper: fetch image as base64
   const fetchImage = async (url: string): Promise<string | null> => {
     try {
       const res = await fetch(url);
@@ -122,7 +122,6 @@ async function exportPowerPoint(products: Product[]) {
     } catch { return null; }
   };
 
-  // Title slide
   const titleSlide = pptx.addSlide();
   titleSlide.addText("تقرير المنتجات", {
     x: 0.5, y: 1.5, w: "90%", h: 1.5,
@@ -133,7 +132,6 @@ async function exportPowerPoint(products: Product[]) {
     fontSize: 14, color: "666666", align: "center",
   });
 
-  // Fetch all images first
   const imageMap = new Map<string, string>();
   await Promise.all(
     products.slice(0, 30).map(async (p) => {
@@ -142,7 +140,6 @@ async function exportPowerPoint(products: Product[]) {
     })
   );
 
-  // Product slides with images
   const chunks = products.slice(0, 30).reduce<Product[][]>((acc, p, i) => {
     if (i % 3 === 0) acc.push([]);
     acc[acc.length - 1].push(p);
@@ -178,7 +175,6 @@ async function exportPowerPoint(products: Product[]) {
     });
   });
 
-  // Table slide
   const tableSlide = pptx.addSlide();
   tableSlide.addText("قائمة المنتجات", {
     x: 0.5, y: 0.3, w: "90%", h: 0.6,
@@ -223,7 +219,6 @@ async function exportPowerPoint(products: Product[]) {
     rowH: 0.5,
   });
 
-  // Summary slide
   const summarySlide = pptx.addSlide();
   const active = products.filter(p => p.status === "active").length;
   const totalSales = products.reduce((s, p) => s + p.sales, 0);
@@ -280,7 +275,7 @@ function toLocalDateInput(date: Date) {
   return `${y}-${m}-${d}`;
 }
 
-function TodayProductsDrawer({ onClose }: { onClose: () => void }) {
+function TodayProductsDrawer({ onClose, supplierId }: { onClose: () => void; supplierId: number }) {
   const products = useProducts();
   const [, setLocation] = useLocation();
 
@@ -288,7 +283,7 @@ function TodayProductsDrawer({ onClose }: { onClose: () => void }) {
 
   const filteredProducts = products.filter((p) => {
     const pDate = toLocalDateInput(new Date(p.createdAt));
-    return pDate === selectedDate;
+    return pDate === selectedDate && p.supplier.id === supplierId;
   });
 
   const [editingImg, setEditingImg] = useState<{ productId: string; index: number | "main"; url: string } | null>(null);
@@ -417,7 +412,6 @@ function TodayProductsDrawer({ onClose }: { onClose: () => void }) {
   return (
     <Sheet open onOpenChange={(open) => !open && onClose()}>
       <SheetContent side="left" className="w-full sm:max-w-[560px] p-0 overflow-y-auto flex flex-col">
-        {/* Header */}
         <div className="flex flex-col gap-3 p-4 border-b sticky top-0 bg-background z-10">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -466,7 +460,6 @@ function TodayProductsDrawer({ onClose }: { onClose: () => void }) {
               ];
               return (
                 <div key={product.id} className="p-4 space-y-4">
-                  {/* Product header row */}
                   <div className="flex items-start gap-3">
                     <img src={product.mainImage} alt={product.name}
                       className="h-14 w-14 rounded-lg object-cover flex-shrink-0 border border-border" />
@@ -498,12 +491,10 @@ function TodayProductsDrawer({ onClose }: { onClose: () => void }) {
                     </Button>
                   </div>
 
-                  {/* Description snippet */}
                   <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2 bg-muted/40 rounded-md px-3 py-2">
                     {product.description}
                   </p>
 
-                  {/* Gallery */}
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
@@ -546,13 +537,11 @@ function TodayProductsDrawer({ onClose }: { onClose: () => void }) {
                             {index === "main" && (
                               <span className="absolute -top-1 -right-1 text-[9px] bg-primary text-primary-foreground rounded px-1 leading-4">رئيسية</span>
                             )}
-                            {/* Checkbox */}
                             <div className="absolute top-0.5 left-0.5">
                               <Checkbox checked={isSelected} onCheckedChange={() => toggleImgSelect(product.id, String(index))}
                                 onClick={(e) => e.stopPropagation()}
                                 className="bg-white/80 data-[state=checked]:bg-blue-500 h-3.5 w-3.5" />
                             </div>
-                            {/* Hover actions */}
                             <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center gap-1">
                               <button onClick={(e) => { e.stopPropagation(); setLightboxUrl(url); }}
                                 className="h-6 w-6 rounded bg-white/20 hover:bg-white/40 flex items-center justify-center">
@@ -575,7 +564,6 @@ function TodayProductsDrawer({ onClose }: { onClose: () => void }) {
                                 <Trash2 className="h-3 w-3 text-white" />
                               </button>
                             </div>
-                            {/* Inline edit input */}
                             {isEditing && (
                               <div className="absolute top-full right-0 mt-1 z-20 bg-background border border-border rounded-lg shadow-lg p-2 w-56">
                                 <p className="text-xs font-medium mb-1.5">رابط الصورة الجديدة</p>
@@ -607,7 +595,6 @@ function TodayProductsDrawer({ onClose }: { onClose: () => void }) {
                     </div>
                   </div>
 
-                  {/* Video */}
                   {product.videoUrl && (
                     <>
                       <Separator />
@@ -628,7 +615,6 @@ function TodayProductsDrawer({ onClose }: { onClose: () => void }) {
 
                   <Separator />
 
-                  {/* Supplier info */}
                   <div className="bg-muted/30 rounded-xl p-3 space-y-3">
                     <div className="flex items-center justify-between">
                       <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide">بيانات المورد</p>
@@ -682,7 +668,6 @@ function TodayProductsDrawer({ onClose }: { onClose: () => void }) {
                       </div>
                     </div>
 
-                    {/* Action buttons */}
                     <div className="flex gap-2 pt-1">
                       <a href={`tel:${product.supplier.phone}`} className="flex-1">
                         <Button variant="outline" size="sm" className="w-full text-xs gap-1.5 border-green-200 text-green-700 hover:bg-green-50">
@@ -710,12 +695,10 @@ function TodayProductsDrawer({ onClose }: { onClose: () => void }) {
           </div>
         )}
 
-        {/* Image Editor */}
         {editorState && (
           <ImageEditor src={editorState.url} onSave={saveEditorImage} onClose={() => setEditorState(null)} />
         )}
 
-        {/* Lightbox */}
         {lightboxUrl && (
           <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4" onClick={() => setLightboxUrl(null)}>
             <button className="absolute top-4 left-4 text-white/80 hover:text-white" onClick={() => setLightboxUrl(null)}>
@@ -729,389 +712,17 @@ function TodayProductsDrawer({ onClose }: { onClose: () => void }) {
   );
 }
 
-export function ProductQuickView() {
+export default function SupplierProducts() {
   const { id } = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
-  const product = useProducts().find(p => p.id === id);
-
-  function waLink(phone: string) {
-    const digits = phone.replace(/\D/g, "");
-    return `https://wa.me/${digits}`;
-  }
-
-  if (!product) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-muted-foreground">جاري التحميل...</p>
-      </div>
-    );
-  }
-
-  const rating = avgRating(product.reviews);
-  const [activeImg, setActiveImg] = useState(product.mainImage);
-
-  return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="sticky top-0 z-20 bg-background border-b">
-        <div className="flex items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" onClick={() => setLocation("/products")} className="h-9 w-9">
-              <ArrowRight className="h-5 w-5" />
-            </Button>
-            <Badge variant={product.status === "active" ? "default" : "secondary"}
-              className={product.status === "active" ? "bg-green-500" : ""}>
-              {product.status === "active" ? "نشط" : "مخفي"}
-            </Badge>
-            <span className="text-xs text-muted-foreground">{product.sku}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button size="sm" variant="outline" onClick={() => setLocation(`/products/${product.id}`)}>
-              <Edit className="h-3.5 w-3.5 ml-1" />
-              تعديل
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      {/* Main image */}
-      <div className="max-w-md mx-auto">
-        <div className="relative bg-muted aspect-square w-full overflow-hidden rounded-xl mt-4">
-          <img src={activeImg} alt={product.name} className="w-full h-full object-cover" />
-        </div>
-      </div>
-
-      {/* Gallery */}
-      {product.gallery.length > 0 && (
-        <div className="max-w-md mx-auto">
-          <div className="flex gap-2 p-3 overflow-x-auto">
-            {[product.mainImage, ...product.gallery].slice(0, 6).map((img, i) => (
-              <button key={i} onClick={() => setActiveImg(img)}
-                className={`h-14 w-14 rounded-md overflow-hidden flex-shrink-0 border-2 transition-colors ${activeImg === img ? "border-primary" : "border-transparent"}`}>
-                <img src={img} alt="" className="w-full h-full object-cover" />
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Info */}
-      <div className="max-w-2xl mx-auto p-4 space-y-4">
-        <div>
-          <h2 className="text-xl font-bold">{product.name}</h2>
-          <p className="text-sm text-muted-foreground mt-0.5">{product.category} · {product.subCategory}</p>
-        </div>
-
-        <StarRow rating={rating} count={product.reviews.length} />
-
-        {/* Price + stock + sales */}
-        <div className="grid grid-cols-3 gap-3">
-          <div className="bg-muted/50 rounded-xl p-4 text-center border">
-            <p className="text-[10px] text-muted-foreground mb-1 uppercase tracking-wide">السعر</p>
-            <p className="text-xl font-bold text-primary">{product.price}</p>
-            <p className="text-[10px] text-muted-foreground">ج.م</p>
-          </div>
-          <div className={`rounded-xl p-4 text-center border ${product.quantity < 15 ? "bg-destructive/10 border-destructive/20" : "bg-muted/50"}`}>
-            <p className="text-[10px] text-muted-foreground mb-1 uppercase tracking-wide">المخزون</p>
-            <p className={`text-xl font-bold ${product.quantity < 15 ? "text-destructive" : ""}`}>{product.quantity}</p>
-            <p className="text-[10px] text-muted-foreground">وحدة</p>
-          </div>
-          <div className="bg-muted/50 rounded-xl p-4 text-center border">
-            <p className="text-[10px] text-muted-foreground mb-1 uppercase tracking-wide">المبيعات</p>
-            <p className="text-xl font-bold">{product.sales}</p>
-            <p className="text-[10px] text-muted-foreground">مباع</p>
-          </div>
-        </div>
-
-        {/* Commission */}
-        <div className="flex items-center justify-between bg-primary/5 border border-primary/10 rounded-xl px-4 py-3">
-          <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
-              <TrendingUp className="h-4 w-4 text-primary" />
-            </div>
-            <span className="text-sm font-medium">العمولة</span>
-          </div>
-          <span className="text-lg font-bold text-primary">{product.commission} ج.م</span>
-        </div>
-
-        {/* Secondary stats */}
-        <div className="grid grid-cols-3 gap-2">
-          <div className="bg-muted/30 rounded-lg px-3 py-2.5 text-center">
-            <Eye className="h-4 w-4 text-muted-foreground mx-auto mb-1" />
-            <p className="text-sm font-bold">{product.views.toLocaleString("ar-EG")}</p>
-            <p className="text-[9px] text-muted-foreground">مشاهدة</p>
-          </div>
-          <div className="bg-muted/30 rounded-lg px-3 py-2.5 text-center">
-            <Package className="h-4 w-4 text-muted-foreground mx-auto mb-1" />
-            <p className="text-sm font-bold">{product.minOrder}</p>
-            <p className="text-[9px] text-muted-foreground">حد أدنى</p>
-          </div>
-          <div className="bg-muted/30 rounded-lg px-3 py-2.5 text-center">
-            <Heart className="h-4 w-4 text-pink-500 mx-auto mb-1" />
-            <p className="text-sm font-bold">{product.favoritesCount}</p>
-            <p className="text-[9px] text-muted-foreground">مفضلة</p>
-          </div>
-        </div>
-
-        <Separator />
-
-        {/* Description */}
-        <div>
-          <p className="text-xs font-medium text-muted-foreground mb-1.5">الوصف</p>
-          <p className="text-sm leading-relaxed">{product.description}</p>
-        </div>
-
-        <Separator />
-
-        {/* Specs */}
-        <div>
-          <p className="text-xs font-medium text-muted-foreground mb-2">المواصفات</p>
-          <div className="grid grid-cols-2 gap-2 text-sm">
-            {[
-              ["الخامة", product.material],
-              ["المصنع", product.factoryName],
-              ["الوزن", `${product.weight} كجم`],
-              ["الأبعاد", `${product.length}×${product.width} سم`],
-              ["تاريخ الإضافة", formatDate(product.createdAt)],
-            ].map(([k, v]) => (
-              <div key={k} className="flex gap-1">
-                <span className="text-muted-foreground">{k}:</span>
-                <span className="font-medium">{v}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Colors */}
-        {product.attributeType === "colors" && product.colors.length > 0 && (
-          <>
-            <Separator />
-            <div>
-              <p className="text-xs font-medium text-muted-foreground mb-2">الألوان المتاحة</p>
-              <div className="space-y-1.5">
-                {product.colors.map(c => (
-                  <div key={c.id} className="flex items-center justify-between bg-muted rounded-lg px-3 py-2">
-                    <div className="flex items-center gap-2">
-                      <span className="h-4 w-4 rounded-full border border-border" style={{ backgroundColor: c.code }} />
-                      <span className="text-sm font-medium">{c.name}</span>
-                    </div>
-                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                      <span>{c.quantity} قطعة</span>
-                      <span className="font-medium text-foreground">{c.price} ج.م</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </>
-        )}
-
-        {/* Sizes */}
-        {product.attributeType === "sizes" && product.sizes.length > 0 && (
-          <>
-            <Separator />
-            <div>
-              <p className="text-xs font-medium text-muted-foreground mb-2">المقاسات المتاحة</p>
-              <div className="space-y-1.5">
-                {product.sizes.map(s => (
-                  <div key={s.id} className="flex items-center justify-between bg-muted rounded-lg px-3 py-2">
-                    <span className="text-sm font-medium">{s.size}</span>
-                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                      <span>{s.quantity} قطعة</span>
-                      <span className="font-medium text-foreground">{s.price} ج.م</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </>
-        )}
-
-        {/* Combos */}
-        {product.combos.length > 0 && (
-          <>
-            <Separator />
-            <div>
-              <p className="text-xs font-medium text-muted-foreground mb-2">الكومبو (لون + مقاس)</p>
-              <div className="space-y-1.5">
-                {product.combos.map(c => (
-                  <div key={c.id} className="flex items-center justify-between bg-muted rounded-lg px-3 py-2">
-                    <div className="flex items-center gap-2">
-                      <span className="h-3.5 w-3.5 rounded-full border border-border" style={{ backgroundColor: c.colorCode }} />
-                      <span className="text-sm">{c.color} — {c.size}</span>
-                    </div>
-                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                      <span>{c.quantity} قطعة</span>
-                      <span className="font-medium text-foreground">{c.price} ج.م</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </>
-        )}
-
-        {/* Custom Attributes */}
-        {product.customAttrs.length > 0 && (
-          <>
-            <Separator />
-            <div>
-              <p className="text-xs font-medium text-muted-foreground mb-2">مواصفات إضافية</p>
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                {product.customAttrs.map(a => (
-                  <div key={a.id} className="flex gap-1">
-                    <span className="text-muted-foreground">{a.name}:</span>
-                    <span className="font-medium">{a.value}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </>
-        )}
-
-        <Separator />
-
-        {/* Video */}
-        {product.videoUrl && (
-          <>
-            <div>
-              <p className="text-xs font-medium text-muted-foreground mb-2">فيديو المنتج</p>
-              {product.videoUrl.includes("youtube.com") || product.videoUrl.includes("youtu.be") ? (
-                <div className="relative w-full aspect-video rounded-lg overflow-hidden bg-muted">
-                  <iframe
-                    src={`https://www.youtube.com/embed/${product.videoUrl.includes("youtu.be") ? product.videoUrl.split("/").pop()?.split("?")[0] : new URL(product.videoUrl).searchParams.get("v")}`}
-                    className="absolute inset-0 w-full h-full"
-                    allowFullScreen
-                  />
-                </div>
-              ) : (
-                <video src={product.videoUrl} controls className="w-full rounded-lg" />
-              )}
-            </div>
-            <Separator />
-          </>
-        )}
-
-        {/* Supplier */}
-        <div className="bg-muted/30 rounded-xl p-3 space-y-3">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide">بيانات المورد</p>
-          </div>
-
-          <div className="flex items-start gap-3">
-            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-              <Building2 className="h-5 w-5 text-primary" />
-            </div>
-            <div className="flex-1">
-              <div className="flex items-center gap-1.5">
-                <p className="font-bold text-sm">{product.supplier.name}</p>
-                <span className="text-[10px] text-muted-foreground">({product.supplier.companyName})</span>
-                <button onClick={() => { navigator.clipboard.writeText(product.supplier.name); }}
-                  className="text-muted-foreground hover:text-foreground transition-colors" title="نسخ الاسم">
-                  <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                </button>
-              </div>
-              <div className="flex items-center gap-1 mt-0.5">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <Star key={i} className={`h-3 w-3 ${i < Math.round(product.supplier.averageRating) ? "fill-amber-400 text-amber-400" : "text-muted-foreground/30"}`} />
-                ))}
-                <span className="text-xs text-muted-foreground mr-1">{product.supplier.averageRating}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-2 text-xs">
-            <div className="flex items-center gap-1.5">
-              <span className="font-mono text-[10px] bg-muted px-1.5 py-0.5 rounded">ID: {product.supplier.id}</span>
-            </div>
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <MapPin className="h-3.5 w-3.5 flex-shrink-0" />
-              <span>{product.supplier.address}</span>
-            </div>
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <FileText className="h-3.5 w-3.5 flex-shrink-0" />
-              <span>السجل: <span className="font-medium text-foreground">{product.supplier.typeOfBusiness}</span></span>
-            </div>
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <MessageSquare className="h-3.5 w-3.5 flex-shrink-0" />
-              <span>{product.supplier.email}</span>
-            </div>
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Phone className="h-3.5 w-3.5 flex-shrink-0" />
-              <span dir="ltr">{product.supplier.phone}</span>
-            </div>
-          </div>
-          <div className="flex gap-1.5">
-            <a href={`tel:${product.supplier.phone}`} className="flex-1">
-              <Button variant="outline" size="sm" className="w-full text-[10px] h-7 gap-1">
-                <Phone className="h-3 w-3" /> اتصال
-              </Button>
-            </a>
-            <a href={waLink(product.supplier.phone)} target="_blank" rel="noopener noreferrer" className="flex-1">
-              <Button variant="outline" size="sm" className="w-full text-[10px] h-7 gap-1 border-emerald-300 text-emerald-700">
-                <svg className="h-3 w-3" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-                واتساب
-              </Button>
-            </a>
-          </div>
-        </div>
-
-        {/* Reviews */}
-        {product.reviews.length > 0 && (
-          <>
-            <Separator />
-            <div>
-              <p className="text-xs font-medium text-muted-foreground mb-2">التقييمات ({product.reviews.length})</p>
-              <div className="space-y-2">
-                {product.reviews.slice(0, 5).map(r => (
-                  <div key={r.id} className="bg-muted/50 rounded-lg p-3">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-sm font-medium">{r.customerName}</span>
-                      <span className="text-xs text-muted-foreground">{formatDate(r.date)}</span>
-                    </div>
-                    <div className="flex gap-0.5 mb-1">
-                      {Array.from({ length: 5 }).map((_, i) => (
-                        <Star key={i} className={`h-3 w-3 ${i < r.stars ? "fill-amber-400 text-amber-400" : "text-muted-foreground/40"}`} />
-                      ))}
-                    </div>
-                    <p className="text-xs text-muted-foreground">{r.comment}</p>
-                    {r.images && r.images.length > 0 && (
-                      <div className="flex gap-1.5 mt-2">
-                        {r.images.map((img, i) => (
-                          <img key={i} src={img} alt="" className="h-10 w-10 rounded object-cover" />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </>
-        )}
-      </div>
-
-      {/* Footer actions */}
-      <div className="max-w-2xl mx-auto p-4 border-t flex gap-2">
-        <Button className="flex-1" onClick={() => setLocation(`/products/${product.id}`)}>
-          <Edit className="h-4 w-4 ml-2" />
-          تعديل المنتج
-        </Button>
-        <Button variant="outline" onClick={() => { adminStore.toggleStatus(product.id); setLocation("/products"); }}>
-          {product.status === "active" ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-export default function ProductsList() {
+  const suppliers = useSuppliers();
   const products = useProducts();
-  const [, setLocation] = useLocation();
+  const supplier = suppliers.find(s => s.id === Number(id));
+
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [subCategoryFilter, setSubCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [supplierFilter, setSupplierFilter] = useState<string>("all");
   const [selectedColors, setSelectedColors] = useState<string[]>([]);
   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
   const [minRating, setMinRating] = useState(0);
@@ -1123,8 +734,8 @@ export default function ProductsList() {
   const [todayOpen, setTodayOpen] = useState(false);
   const todayCount = useMemo(() => {
     const todayStr = new Date().toDateString();
-    return products.filter(p => new Date(p.createdAt).toDateString() === todayStr).length;
-  }, [products]);
+    return products.filter(p => new Date(p.createdAt).toDateString() === todayStr && p.supplier.id === Number(id)).length;
+  }, [products, id]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [page, setPage] = useState(1);
@@ -1136,17 +747,19 @@ export default function ProductsList() {
   const [lengthFilter, setLengthFilter] = useState("");
 
   const subCategories = useMemo(() => {
-    const base = categoryFilter === "all" ? products : products.filter(p => p.category === categoryFilter);
+    const base = categoryFilter === "all"
+      ? products.filter(p => p.supplier.id === Number(id))
+      : products.filter(p => p.supplier.id === Number(id) && p.category === categoryFilter);
     return [...new Set(base.map(p => p.subCategory))].filter(Boolean);
-  }, [products, categoryFilter]);
+  }, [products, categoryFilter, id]);
 
   const filteredAndSorted = useMemo(() => {
     let list = products.filter(p => {
+      if (p.supplier.id !== Number(id)) return false;
       const matchesSearch = p.name.includes(search) || p.sku.includes(search);
       const matchesCategory = categoryFilter === "all" || p.category === categoryFilter;
       const matchesSubCategory = subCategoryFilter === "all" || p.subCategory === subCategoryFilter;
       const matchesStatus = statusFilter === "all" || p.status === statusFilter;
-      const matchesSupplier = supplierFilter === "all" || p.supplier.id === Number(supplierFilter);
       const matchesPrice = !priceFilter || p.price === Number(priceFilter);
       const matchesMaterial = !materialFilter || p.material.toLowerCase().includes(materialFilter.toLowerCase());
       const matchesWeight = !weightFilter || String(p.weight).includes(weightFilter);
@@ -1167,7 +780,7 @@ export default function ProductsList() {
       const matchesDateFrom = !dateFrom || created >= new Date(dateFrom).getTime();
       const matchesDateTo = !dateTo || created <= new Date(dateTo + "T23:59:59").getTime();
       return matchesSearch && matchesCategory && matchesSubCategory && matchesStatus &&
-        matchesSupplier && matchesPrice && matchesMaterial && matchesWeight && matchesWidth && matchesLength &&
+        matchesPrice && matchesMaterial && matchesWeight && matchesWidth && matchesLength &&
         matchesColor && matchesSize && matchesRating && matchesDateFrom && matchesDateTo;
     });
     list = [...list].sort((a, b) => {
@@ -1183,7 +796,7 @@ export default function ProductsList() {
       }
     });
     return list;
-  }, [products, search, categoryFilter, subCategoryFilter, statusFilter, supplierFilter,
+  }, [products, id, search, categoryFilter, subCategoryFilter, statusFilter,
     priceFilter, materialFilter, weightFilter, widthFilter, lengthFilter,
     selectedColors, selectedSizes, minRating, dateFrom, dateTo, sortBy]);
 
@@ -1191,17 +804,20 @@ export default function ProductsList() {
   const safePage = Math.min(page, totalPages);
   const paginated = filteredAndSorted.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
-  const stats = useMemo(() => ({
-    total: products.length,
-    active: products.filter(p => p.status === "active").length,
-    hidden: products.filter(p => p.status === "hidden").length,
-    totalStock: products.reduce((s, p) => s + p.quantity, 0),
-    totalViews: products.reduce((s, p) => s + p.views, 0),
-    totalSales: products.reduce((s, p) => s + p.sales, 0),
-    unsold: products.filter(p => p.sales === 0).length,
-    totalReviews: products.reduce((s, p) => s + p.reviews.length, 0),
-    favorites: products.reduce((s, p) => s + p.favoritesCount, 0),
-  }), [products]);
+  const stats = useMemo(() => {
+    const sp = products.filter(p => p.supplier.id === Number(id));
+    return {
+      total: sp.length,
+      active: sp.filter(p => p.status === "active").length,
+      hidden: sp.filter(p => p.status === "hidden").length,
+      totalStock: sp.reduce((s, p) => s + p.quantity, 0),
+      totalViews: sp.reduce((s, p) => s + p.views, 0),
+      totalSales: sp.reduce((s, p) => s + p.sales, 0),
+      unsold: sp.filter(p => p.sales === 0).length,
+      totalReviews: sp.reduce((s, p) => s + p.reviews.length, 0),
+      favorites: sp.reduce((s, p) => s + p.favoritesCount, 0),
+    };
+  }, [products, id]);
 
   const toggleColor = (name: string) =>
     setSelectedColors(prev => prev.includes(name) ? prev.filter(c => c !== name) : [...prev, name]);
@@ -1210,11 +826,11 @@ export default function ProductsList() {
 
   const hasActiveFilters = selectedColors.length > 0 || selectedSizes.length > 0 ||
     !!priceFilter || !!materialFilter || !!weightFilter || !!widthFilter || !!lengthFilter || minRating > 0 ||
-    !!dateFrom || !!dateTo || supplierFilter !== "all" || subCategoryFilter !== "all";
+    !!dateFrom || !!dateTo || subCategoryFilter !== "all";
 
   const clearAllFilters = () => {
     setSearch(""); setCategoryFilter("all"); setSubCategoryFilter("all");
-    setStatusFilter("all"); setSupplierFilter("all");
+    setStatusFilter("all");
     setSelectedColors([]); setSelectedSizes([]);
     setPriceFilter(""); setMaterialFilter(""); setWeightFilter(""); setWidthFilter(""); setLengthFilter(""); setMinRating(0);
     setDateFrom(""); setDateTo(""); setDateRangeMode(false); setSortBy("newest"); setPage(1);
@@ -1240,15 +856,58 @@ export default function ProductsList() {
   const bulkHide = () => { selectedIds.forEach(id => { const p = products.find(x => x.id === id); if (p?.status === "active") adminStore.toggleStatus(id); }); setSelectedIds(new Set()); };
   const bulkDelete = () => { selectedIds.forEach(id => adminStore.remove(id)); setSelectedIds(new Set()); setBulkDeleteOpen(false); };
 
+  if (!supplier) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-4">
+        <p className="text-muted-foreground">لم يتم العثور على المورد</p>
+        <Button variant="outline" onClick={() => setLocation("/suppliers")}>
+          <ArrowRight className="h-4 w-4 ml-2" /> العودة
+        </Button>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" dir="rtl">
+      {/* Supplier Header */}
+      <Card className="overflow-hidden">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-4">
+            <Avatar className="h-16 w-16 border-4 border-background shadow-lg shrink-0">
+              <AvatarImage src={supplier.image} alt={supplier.name} />
+              <AvatarFallback className="bg-primary/10 text-primary font-bold text-xl">{supplier.name.charAt(0)}</AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-3">
+                <h1 className="text-2xl font-bold truncate">{supplier.name}</h1>
+                <Badge variant={supplier.status === 1 ? "default" : "destructive"}
+                  className={`${supplier.status === 1 ? "bg-green-500" : ""} shrink-0`}>
+                  {supplier.status === 1 ? "نشط" : "معطل"}
+                </Badge>
+              </div>
+              <p className="text-sm text-muted-foreground mt-1">{supplier.companyName}</p>
+              <div className="flex items-center gap-2 mt-1">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <Star key={i} className={`h-4 w-4 ${i < Math.round(supplier.averageRating) ? "text-yellow-500 fill-yellow-500" : "text-muted"}`} />
+                ))}
+                <span className="text-sm font-bold">{supplier.averageRating}</span>
+              </div>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => setLocation(`/suppliers/${supplier.id}`)}>
+              <ArrowRight className="h-4 w-4 ml-1" />
+              العودة للتفاصيل
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Page header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h1 className="text-3xl font-bold tracking-tight">المنتجات</h1>
+        <h1 className="text-3xl font-bold tracking-tight">منتجات المورد</h1>
         <div className="flex items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" data-testid="button-export">
+              <Button variant="outline" size="sm">
                 <Download className="h-4 w-4 ml-1.5" />
                 تصدير
               </Button>
@@ -1273,7 +932,7 @@ export default function ProductsList() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button variant="outline" size="sm" className="relative" onClick={() => setTodayOpen(true)} data-testid="button-today-products">
+          <Button variant="outline" size="sm" className="relative" onClick={() => setTodayOpen(true)}>
             <CalendarDays className="h-4 w-4 ml-1.5" />
             منتجات اليوم
             {todayCount > 0 && (
@@ -1282,23 +941,12 @@ export default function ProductsList() {
               </span>
             )}
           </Button>
-          <Button data-testid="button-add-product">
+          <Button>
             <Plus className="h-4 w-4 ml-2" />
             إضافة منتج
           </Button>
         </div>
       </div>
-
-      {/* Chart card */}
-      <button onClick={() => setLocation("/products/charts")}
-        className="w-full flex items-center gap-3 bg-card border border-border rounded-lg px-5 py-3 hover:bg-accent/50 transition-colors cursor-pointer text-right">
-        <span className="text-primary"><BarChart2 className="h-5 w-5" /></span>
-        <div>
-          <p className="text-sm font-semibold">الرسم البياني</p>
-          <p className="text-xs text-muted-foreground">عرض المنتجات والمبيعات والزيارات بشكل بصري</p>
-        </div>
-        <ChevronLeft className="h-4 w-4 mr-auto text-muted-foreground" />
-      </button>
 
       {/* Stats bar */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
@@ -1339,15 +987,15 @@ export default function ProductsList() {
 
       <Card>
         <CardContent className="p-4 sm:p-6 space-y-4">
-          {/* Row 1: Search + Category + Sub-cat + Status + Supplier */}
+          {/* Row 1: Search + Category + Sub-cat + Status */}
           <div className="flex flex-wrap gap-3">
             <div className="relative flex-1 min-w-[200px]">
               <Search className="absolute right-3 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input data-testid="input-search-products" placeholder="اسم المنتج أو رمز SKU..."
+              <Input placeholder="اسم المنتج أو رمز SKU..."
                 value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} className="pr-9" />
             </div>
             <Select value={categoryFilter} onValueChange={(v) => { setCategoryFilter(v); setSubCategoryFilter("all"); setPage(1); }}>
-              <SelectTrigger data-testid="select-category-filter" className="w-[140px]">
+              <SelectTrigger className="w-[140px]">
                 <SelectValue placeholder="القسم" />
               </SelectTrigger>
               <SelectContent>
@@ -1356,7 +1004,7 @@ export default function ProductsList() {
               </SelectContent>
             </Select>
             <Select value={subCategoryFilter} onValueChange={(v) => { setSubCategoryFilter(v); setPage(1); }} disabled={subCategories.length === 0}>
-              <SelectTrigger data-testid="select-subcategory-filter" className="w-[140px]">
+              <SelectTrigger className="w-[140px]">
                 <SelectValue placeholder="القسم الفرعي" />
               </SelectTrigger>
               <SelectContent>
@@ -1365,22 +1013,13 @@ export default function ProductsList() {
               </SelectContent>
             </Select>
             <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1); }}>
-              <SelectTrigger data-testid="select-status-filter" className="w-[120px]">
+              <SelectTrigger className="w-[120px]">
                 <SelectValue placeholder="الحالة" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">كل الحالات</SelectItem>
                 <SelectItem value="active">نشط</SelectItem>
                 <SelectItem value="hidden">مخفي</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={supplierFilter} onValueChange={(v) => { setSupplierFilter(v); setPage(1); }}>
-              <SelectTrigger data-testid="select-supplier-filter" className="w-[160px]">
-                <SelectValue placeholder="المورد" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">كل الموردين</SelectItem>
-                {suppliersList.map(s => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
@@ -1390,7 +1029,7 @@ export default function ProductsList() {
             {/* Colors */}
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" data-testid="button-filter-colors"
+                <Button variant="outline"
                   className={selectedColors.length > 0 ? "border-primary text-primary" : ""}>
                   الألوان
                   {selectedColors.length > 0 && <Badge className="mr-2 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs bg-primary text-primary-foreground">{selectedColors.length}</Badge>}
@@ -1415,7 +1054,7 @@ export default function ProductsList() {
             {/* Sizes */}
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" data-testid="button-filter-sizes"
+                <Button variant="outline"
                   className={selectedSizes.length > 0 ? "border-primary text-primary" : ""}>
                   الأحجام
                   {selectedSizes.length > 0 && <Badge className="mr-2 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs bg-primary text-primary-foreground">{selectedSizes.length}</Badge>}
@@ -1439,23 +1078,23 @@ export default function ProductsList() {
             {/* Price */}
             <div className="flex items-center gap-2">
               <label className="text-sm text-muted-foreground">السعر</label>
-              <Input type="number" data-testid="input-filter-price" placeholder="سعر المنتج"
+              <Input type="number" placeholder="سعر المنتج"
                 value={priceFilter} onChange={(e) => setPriceFilter(e.target.value)}
                 className={`w-28 h-9 ${priceFilter ? "border-primary text-primary" : ""}`} />
             </div>
 
             {/* Attributes */}
             <div className="flex items-center gap-2">
-              <Input type="text" data-testid="input-filter-material" placeholder="الخامة"
+              <Input type="text" placeholder="الخامة"
                 value={materialFilter} onChange={(e) => setMaterialFilter(e.target.value)}
                 className={`w-24 h-9 ${materialFilter ? "border-primary text-primary" : ""}`} />
-              <Input type="number" data-testid="input-filter-weight" placeholder="الوزن"
+              <Input type="number" placeholder="الوزن"
                 value={weightFilter} onChange={(e) => setWeightFilter(e.target.value)}
                 className={`w-20 h-9 ${weightFilter ? "border-primary text-primary" : ""}`} />
-              <Input type="number" data-testid="input-filter-width" placeholder="العرض"
+              <Input type="number" placeholder="العرض"
                 value={widthFilter} onChange={(e) => setWidthFilter(e.target.value)}
                 className={`w-20 h-9 ${widthFilter ? "border-primary text-primary" : ""}`} />
-              <Input type="number" data-testid="input-filter-length" placeholder="الطول"
+              <Input type="number" placeholder="الطول"
                 value={lengthFilter} onChange={(e) => setLengthFilter(e.target.value)}
                 className={`w-20 h-9 ${lengthFilter ? "border-primary text-primary" : ""}`} />
             </div>
@@ -1463,7 +1102,7 @@ export default function ProductsList() {
             {/* Date */}
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" data-testid="button-filter-date"
+                <Button variant="outline"
                   className={(dateFrom || dateTo) ? "border-primary text-primary" : ""}>
                   التاريخ
                   {(dateFrom || dateTo) && <span className="mr-2 text-xs font-medium">{dateFrom || "..."}{dateTo ? ` ← ${dateTo}` : ""}</span>}
@@ -1497,7 +1136,7 @@ export default function ProductsList() {
             {/* Rating */}
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" data-testid="button-filter-rating"
+                <Button variant="outline"
                   className={minRating > 0 ? "border-primary text-primary" : ""}>
                   التقييم
                   {minRating > 0 && <span className="mr-2 text-xs font-medium">{minRating}+ نجوم</span>}
@@ -1524,7 +1163,7 @@ export default function ProductsList() {
 
             {/* Sort */}
             <Select value={sortBy} onValueChange={setSortBy}>
-              <SelectTrigger data-testid="select-sort" className="w-[160px]">
+              <SelectTrigger className="w-[160px]">
                 <SelectValue placeholder="الترتيب" />
               </SelectTrigger>
               <SelectContent>
@@ -1539,7 +1178,7 @@ export default function ProductsList() {
             </Select>
 
             {hasActiveFilters && (
-              <Button variant="ghost" size="sm" data-testid="button-clear-filters" onClick={clearAllFilters} className="text-muted-foreground gap-1">
+              <Button variant="ghost" size="sm" onClick={clearAllFilters} className="text-muted-foreground gap-1">
                 <X className="h-3.5 w-3.5" />مسح الكل
               </Button>
             )}
@@ -1549,7 +1188,7 @@ export default function ProductsList() {
           </div>
 
           {/* Active chips */}
-          {(selectedColors.length > 0 || selectedSizes.length > 0 || minRating > 0 || dateFrom || dateTo || subCategoryFilter !== "all" || supplierFilter !== "all") && (
+          {(selectedColors.length > 0 || selectedSizes.length > 0 || minRating > 0 || dateFrom || dateTo || subCategoryFilter !== "all") && (
             <div className="flex flex-wrap gap-2">
               {selectedColors.map(c => {
                 const color = ALL_COLORS.find(col => col.name === c);
@@ -1562,7 +1201,6 @@ export default function ProductsList() {
               {selectedSizes.map(s => <Badge key={s} variant="secondary" className="gap-1.5 pr-1">{s}<button onClick={() => toggleSize(s)} className="hover:text-foreground text-muted-foreground"><X className="h-3 w-3" /></button></Badge>)}
               {minRating > 0 && <Badge variant="secondary" className="gap-1.5 pr-1">{minRating}+ نجوم<button onClick={() => setMinRating(0)} className="hover:text-foreground text-muted-foreground"><X className="h-3 w-3" /></button></Badge>}
               {subCategoryFilter !== "all" && <Badge variant="secondary" className="gap-1.5 pr-1">{subCategoryFilter}<button onClick={() => setSubCategoryFilter("all")} className="hover:text-foreground text-muted-foreground"><X className="h-3 w-3" /></button></Badge>}
-              {supplierFilter !== "all" && <Badge variant="secondary" className="gap-1.5 pr-1">{suppliersList.find(s => s.id === Number(supplierFilter))?.name}<button onClick={() => setSupplierFilter("all")} className="hover:text-foreground text-muted-foreground"><X className="h-3 w-3" /></button></Badge>}
               {dateFrom && <Badge variant="secondary" className="gap-1.5 pr-1">من: {dateFrom}<button onClick={() => setDateFrom("")} className="hover:text-foreground text-muted-foreground"><X className="h-3 w-3" /></button></Badge>}
               {dateTo && <Badge variant="secondary" className="gap-1.5 pr-1">إلى: {dateTo}<button onClick={() => setDateTo("")} className="hover:text-foreground text-muted-foreground"><X className="h-3 w-3" /></button></Badge>}
             </div>
@@ -1574,7 +1212,7 @@ export default function ProductsList() {
               <TableHeader>
                 <TableRow className="bg-muted/30">
                   <TableHead className="w-[40px] text-center">
-                    <Checkbox checked={allPageSelected} onCheckedChange={toggleSelectAll} data-testid="checkbox-select-all" />
+                    <Checkbox checked={allPageSelected} onCheckedChange={toggleSelectAll} />
                   </TableHead>
                   <TableHead className="w-[52px]">صورة</TableHead>
                   <TableHead>المنتج</TableHead>
@@ -1601,11 +1239,11 @@ export default function ProductsList() {
                     const rating = avgRating(product.reviews);
                     const isSelected = selectedIds.has(product.id);
                     return (
-                      <TableRow key={product.id} data-testid={`row-product-${product.id}`}
+                      <TableRow key={product.id}
                         className={`cursor-pointer transition-colors ${isSelected ? "bg-primary/5" : ""}`}
                         onClick={() => setLocation(`/products/quick/${product.id}`)}>
                         <TableCell className="text-center" onClick={e => e.stopPropagation()}>
-                          <Checkbox checked={isSelected} onCheckedChange={() => toggleSelect(product.id)} data-testid={`checkbox-product-${product.id}`} />
+                          <Checkbox checked={isSelected} onCheckedChange={() => toggleSelect(product.id)} />
                         </TableCell>
                         <TableCell onClick={e => e.stopPropagation()}>
                           <div className="h-10 w-10 rounded-md overflow-hidden bg-muted">
@@ -1633,8 +1271,7 @@ export default function ProductsList() {
                         </TableCell>
                         <TableCell className="text-right">
                           <Badge variant={product.status === "active" ? "default" : "secondary"}
-                            className={product.status === "active" ? "bg-green-500 hover:bg-green-600" : ""}
-                            data-testid={`status-product-${product.id}`}>
+                            className={product.status === "active" ? "bg-green-500 hover:bg-green-600" : ""}>
                             {product.status === "active" ? "نشط" : "مخفي"}
                           </Badge>
                         </TableCell>
@@ -1644,7 +1281,7 @@ export default function ProductsList() {
                         <TableCell className="text-left" onClick={e => e.stopPropagation()}>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" className="h-8 w-8 p-0" data-testid={`button-actions-${product.id}`}>
+                              <Button variant="ghost" className="h-8 w-8 p-0">
                                 <MoreHorizontal className="h-4 w-4" />
                               </Button>
                             </DropdownMenuTrigger>
@@ -1653,18 +1290,16 @@ export default function ProductsList() {
                               <DropdownMenuItem className="cursor-pointer" onClick={() => setLocation(`/products/quick/${product.id}`)}>
                                 <Eye className="h-4 w-4 ml-2" />عرض سريع
                               </DropdownMenuItem>
-                              <Link href={`/products/${product.id}`}>
-                                <DropdownMenuItem className="cursor-pointer">
-                                  <Edit className="h-4 w-4 ml-2" />تعديل
-                                </DropdownMenuItem>
-                              </Link>
+                              <DropdownMenuItem className="cursor-pointer" onClick={() => setLocation(`/products/${product.id}`)}>
+                                <Edit className="h-4 w-4 ml-2" />تعديل
+                              </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => adminStore.toggleStatus(product.id)}>
                                 <Eye className="h-4 w-4 ml-2" />
                                 {product.status === "active" ? "إخفاء" : "تنشيط"}
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem className="text-destructive focus:text-destructive cursor-pointer"
-                                onClick={() => setDeleteId(product.id)} data-testid={`button-delete-${product.id}`}>
+                                onClick={() => setDeleteId(product.id)}>
                                 <Trash2 className="h-4 w-4 ml-2" />حذف
                               </DropdownMenuItem>
                             </DropdownMenuContent>
@@ -1713,7 +1348,7 @@ export default function ProductsList() {
       </Card>
 
       {/* Today Products Drawer */}
-      {todayOpen && <TodayProductsDrawer onClose={() => setTodayOpen(false)} />}
+      {todayOpen && <TodayProductsDrawer onClose={() => setTodayOpen(false)} supplierId={Number(id)} />}
 
       {/* Delete single */}
       <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>

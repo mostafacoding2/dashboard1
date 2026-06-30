@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, Package, Truck, Menu, Bell, Search, User } from "lucide-react";
+import { LayoutDashboard, Package, Truck, ShoppingCart, RotateCcw, Users, Building2, MessageSquare, AlertTriangle, UserCheck, Bell, CreditCard, BarChart3, ClipboardList, Menu, Search, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -8,6 +8,19 @@ const navItems = [
   { href: "/", label: "لوحة التحكم", icon: LayoutDashboard },
   { href: "/products", label: "المنتجات", icon: Package },
   { href: "/suppliers", label: "الموردون", icon: Truck },
+  { href: "/customers", label: "العملاء", icon: UserCheck },
+  { href: "/orders", label: "الطلبات", icon: ShoppingCart },
+  { href: "/returns", label: "المرتجعات", icon: RotateCcw },
+  { href: "/marketers", label: "المسوقين", icon: Users },
+  { href: "/shipping-companies", label: "شركات الشحن", icon: Building2 },
+  { href: "/shipping-office", label: "مكتب الشحن", icon: Truck },
+  { href: "/employees", label: "إدارة الموظفين", icon: ClipboardList },
+  { href: "/payments", label: "إدارة المدفوعات", icon: CreditCard },
+  { href: "/activity-log", label: "سجل نشاطات الموظفين", icon: BarChart3 },
+  { href: "/statistics", label: "الإحصائيات", icon: BarChart3 },
+  { href: "/chat", label: "الدردشة", icon: MessageSquare },
+  { href: "/complaints", label: "الشكاوي والبلاغات", icon: AlertTriangle },
+  { href: "/notifications", label: "الاشعارات", icon: Bell },
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -86,7 +99,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
         </header>
         
-        <main className="flex-1 p-4 md:p-6 lg:p-8 max-w-7xl mx-auto w-full">
+        <main className="flex-1 p-4 md:p-6 lg:p-8 w-full">
           {children}
         </main>
       </div>
