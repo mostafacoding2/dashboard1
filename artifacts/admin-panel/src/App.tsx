@@ -12,9 +12,12 @@ import ProductDetail from "@/pages/product-detail";
 import Suppliers from "@/pages/suppliers";
 import SuppliersCharts from "@/pages/suppliers-charts";
 import SupplierDetail from "@/pages/supplier-detail";
+import SupplierOrders from "@/pages/supplier-orders";
 import SupplierProducts from "@/pages/supplier-products";
 import Customers from "@/pages/customers";
 import Orders from "@/pages/orders";
+import OrdersCharts from "@/pages/orders-charts";
+import OrderDetail from "@/pages/order-detail";
 import Returns from "@/pages/returns";
 import Marketers from "@/pages/marketers";
 import ShippingCompanies from "@/pages/shipping-companies";
@@ -40,9 +43,12 @@ function Router() {
       <Route path="/suppliers" component={Suppliers} />
       <Route path="/suppliers-charts" component={SuppliersCharts} />
       <Route path="/suppliers/:id/products" component={SupplierProducts} />
+      <Route path="/suppliers/:id/orders" component={SupplierOrders} />
       <Route path="/suppliers/:id" component={SupplierDetail} />
       <Route path="/customers" component={Customers} />
       <Route path="/orders" component={Orders} />
+      <Route path="/orders-charts" component={OrdersCharts} />
+      <Route path="/orders/:id" component={OrderDetail} />
       <Route path="/returns" component={Returns} />
       <Route path="/marketers" component={Marketers} />
       <Route path="/shipping-companies" component={ShippingCompanies} />

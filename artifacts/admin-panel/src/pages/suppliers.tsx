@@ -625,9 +625,9 @@ export default function Suppliers() {
                     </div>
                     <div className="flex-1" />
                     <Link href={`/suppliers/${supplier.id}`}>
-                      <a className="flex items-center gap-0.5 text-[11px] font-medium text-primary hover:underline">
+                      <span className="flex items-center gap-0.5 text-[11px] font-medium text-primary hover:underline cursor-pointer">
                         التفاصيل <ArrowLeft className="h-3.5 w-3.5" />
-                      </a>
+                      </span>
                     </Link>
                   </div>
                 </CardContent>

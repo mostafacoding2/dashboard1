@@ -1,5 +1,5 @@
-import { useState, useMemo, useEffect } from "react";
-import { Link, useLocation } from "wouter";
+import { useEffect, useMemo, useState } from "react";
+import { useLocation, useParams } from "wouter";
 import { useProducts, useSuppliers } from "@/store";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -13,7 +13,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Search, Download, Printer, Truck, CheckCircle2, Clock, XCircle, Filter, X, Pencil, Trash2, Eye, MoreHorizontal, BarChart2 } from "lucide-react";
+import {
+  ArrowRight, Download, Printer, Truck, CheckCircle2, Clock, XCircle, Filter, X, Pencil, Trash2, Eye, MoreHorizontal,
+} from "lucide-react";
 
 function formatDate(d: string) {
   return new Date(d).toLocaleDateString("ar-EG");
@@ -28,7 +30,9 @@ function exportCSV(orders: any[]) {
   const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = url; a.download = "orders.csv"; a.click();
+  a.href = url;
+  a.download = "supplier-orders.csv";
+  a.click();
   URL.revokeObjectURL(url);
 }
 
@@ -45,13 +49,13 @@ function exportPDF(orders: any[]) {
     startY: 40,
     head: [["ID", "Customer", "Phone", "Qty", "Total", "Commission", "Payment", "Status", "Date"]],
     body: orders.map(o => [
-      o.id, o.customer, o.customerPhone, String(o.quantity), `$${o.total}`, `$${o.commission}`, o.paymentMethod, o.status, formatDate(o.date),
+      o.id, o.customer, o.customerPhone, String(o.quantity), `${o.total}`, `${o.commission}`, o.paymentMethod, o.status, formatDate(o.date),
     ]),
     styles: { fontSize: 8, cellPadding: 2 },
     headStyles: { fillColor: [59, 130, 246] },
   });
 
-  doc.save("orders.pdf");
+  doc.save("supplier-orders.pdf");
 }
 
 function exportExcel(orders: any[]) {
@@ -77,14 +81,13 @@ function exportExcel(orders: any[]) {
   const ws = XLSX.utils.json_to_sheet(data);
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Orders");
-  XLSX.writeFile(wb, "orders.xlsx");
+  XLSX.writeFile(wb, "supplier-orders.xlsx");
 }
 
 async function exportPowerPoint(orders: any[]) {
   const pptx = new PptxGenJS();
   pptx.layout = "LAYOUT_WIDE";
 
-  // Title slide
   const titleSlide = pptx.addSlide();
   titleSlide.addText("تقرير الطلبات", {
     x: 0.5, y: 1.5, w: "90%", h: 1.5,
@@ -95,7 +98,6 @@ async function exportPowerPoint(orders: any[]) {
     fontSize: 14, color: "666666", align: "center",
   });
 
-  // Stats slide
   const statsSlide = pptx.addSlide();
   statsSlide.addText("الإحصائيات", {
     x: 0.5, y: 0.3, w: "90%", h: 0.6,
@@ -125,7 +127,6 @@ async function exportPowerPoint(orders: any[]) {
     { x: 1.5, y: 1.2, w: 7, colW: [4, 3], fontSize: 12, border: { pt: 0.5, color: "E5E7EB" } }
   );
 
-  // Table slide
   const tableSlide = pptx.addSlide();
   tableSlide.addText("قائمة الطلبات", {
     x: 0.5, y: 0.3, w: "90%", h: 0.6,
@@ -163,23 +164,60 @@ async function exportPowerPoint(orders: any[]) {
     autoPageRepeatHeader: true,
   });
 
-  await pptx.writeFile({ fileName: "orders.pptx" });
+  await pptx.writeFile({ fileName: "supplier-orders.pptx" });
 }
 
-export default function Orders() {
-  const [, setLocation] = useLocation();
-  const products = useProducts();
-  const suppliers = useSuppliers();
+function getStatusBadge(status: string) {
+  const styles: Record<string, string> = {
+    pending: "bg-yellow-50 text-yellow-700 border border-yellow-200",
+    processing: "bg-blue-50 text-blue-700 border border-blue-200",
+    shipped: "bg-purple-50 text-purple-700 border border-purple-200",
+    delivered: "bg-green-50 text-green-700 border border-green-200",
+    cancelled: "bg-red-50 text-red-700 border border-red-200",
+  };
+  const labels: Record<string, string> = {
+    pending: "جديدة",
+    processing: "مجهزة",
+    shipped: "مشحونة",
+    delivered: "مكتملة",
+    cancelled: "ملغية",
+  };
+  return <Badge className={`${styles[status]} text-[11px]`}>{labels[status]}</Badge>;
+}
 
-  // Filter states
+function getPaymentStatusBadge(status: string) {
+  const styles: Record<string, string> = {
+    "مدفوع": "bg-green-100 text-green-800",
+    "غير مدفوع": "bg-red-100 text-red-800",
+    "مدفوع جزئياً": "bg-yellow-100 text-yellow-800",
+  };
+  return <Badge className={styles[status] || "bg-gray-100 text-gray-800"}>{status}</Badge>;
+}
+
+function getPaymentMethodBadge(method: string) {
+  const styles: Record<string, string> = {
+    "كاش": "bg-green-100 text-green-800",
+    "بطاقة ائتمان": "bg-blue-100 text-blue-800",
+    "تحويل بنفي": "bg-purple-100 text-purple-800",
+    "محفظة إلكترونية": "bg-orange-100 text-orange-800",
+    "فودافون كاش": "bg-red-100 text-red-800",
+  };
+  return <Badge className={styles[method] || "bg-gray-100 text-gray-800"}>{method}</Badge>;
+}
+
+export default function SupplierOrders() {
+  const { id } = useParams<{ id: string }>();
+  const [, setLocation] = useLocation();
+  const suppliers = useSuppliers();
+  const products = useProducts();
+  const supplier = suppliers.find(s => s.id === Number(id));
+
   const [orderId, setOrderId] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [customerId, setCustomerId] = useState("");
   const [customerCode, setCustomerCode] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [supplierFilter, setSupplierFilter] = useState("");
-  const [supplierCodeFilter, setSupplierCodeFilter] = useState("");
   const [dateFilter, setDateFilter] = useState("");
   const [timeFilter, setTimeFilter] = useState("");
   const [priceFilter, setPriceFilter] = useState("");
@@ -226,9 +264,9 @@ export default function Orders() {
   const areas: Record<string, string[]> = {
     "القاهرة": ["مدينة نصر", "مصر الجديدة", "المعادي", "الزمالك", "وسط البلد", "شبرا"],
     "الجيزة": ["الدقي", "المهندسين", "الهرم", "فيصل", "أكتوبر", "الشيخ زايد"],
-    "الإسكندرية": ["سيدي جابر", "المحرم بك", "المندرة", "العطاريد", "الجمرك"],
+    "الإسكندرية": ["سيدي جابر", "المحرم بك", "المندرة", "العطارين", "الجمرك"],
     "الرياض": ["العليا", "الملز", "النخيل", "حي الورود", "السليمانية"],
-    "دبي": ["دبي مارينا", "البرشاء", "Джумейرا", "الديرة", "الكريمي"],
+    "دبي": ["دبي مارينا", "البرشاء", "الديرة", "الكرامة"],
   };
 
   const orders = useMemo(() => {
@@ -249,37 +287,37 @@ export default function Orders() {
     };
     const uaeCities = ["دبي", "أبو ظبي", "شارقة"];
     const uaeAreas: Record<string, string[] | undefined> = {
-      "دبي": ["دبي مارينا", "البرشاء", "الديرة", "الكريمي"],
-      "أبو ظبي": ["المرreur", "البطين", "المصفاة", "الخالدية"],
-      "شارقة": ["ال掘يرة", "ال Wahda", "ال كورنيش"],
+      "دبي": ["دبي مارينا", "البرشاء", "الديرة", "الكرامة"],
+      "أبو ظبي": ["البطين", "المصفاة", "الخالدية", "المرور"],
+      "شارقة": ["القصباء", "المجاز", "اليرموك"],
     };
     const domesticCompanies = ["سمسا", "آرامكس", "فيديكس", "جانيت", "speedex"];
     const domesticOffices = ["مكتب المعادي", "مكتب الدقي", "مكتب مدينة نصر", "مكتب الإسكندرية", "مكتب المنصورة"];
     const internationalCompanies = ["DHL Express", "فيديكس الدولي", "أرامكس الدولي", "TNT", "يونايتد اكسبرس"];
 
-    const mockOrders = products.slice(0, 50).map((p, i) => {
-      const isDomestic = i % 2 === 0;
-      const country = isDomestic ? "مصر" : ["السعودية", "الإمارات"][i % 2];
-      const cities = isDomestic ? egyptCities : country === "السعودية" ? saudiCities : uaeCities;
-      const areasMap = isDomestic ? egyptAreas : country === "السعودية" ? saudiAreas : uaeAreas;
-      const city = cities[i % cities.length];
+    const mockOrders = products.slice(0, 50).map((product, index) => {
+      const isDomestic = index % 2 === 0;
+      const countryValue = isDomestic ? "مصر" : ["السعودية", "الإمارات"][index % 2];
+      const cities = isDomestic ? egyptCities : countryValue === "السعودية" ? saudiCities : uaeCities;
+      const areasMap = isDomestic ? egyptAreas : countryValue === "السعودية" ? saudiAreas : uaeAreas;
+      const city = cities[index % cities.length];
       const cityAreas = areasMap[city] || [];
-      const areaName = cityAreas[i % cityAreas.length] || city;
+      const areaName = cityAreas[index % cityAreas.length] || city;
 
       return {
-        id: `ORD-${1000 + i}`,
-        customer: customerNames[i % customerNames.length],
-        customerId: `USR-${4000 + i}`,
-        customerCode: `CODE-${1000 + i}`,
-        customerPhone: `0101234567${i % 10}`,
-        product: p.name,
-        supplier: p.supplier.name,
-        supplierCode: `SUP-${2000 + i}`,
+        id: `ORD-${1000 + index}`,
+        customer: customerNames[index % customerNames.length],
+        customerId: `USR-${4000 + index}`,
+        customerCode: `CODE-${1000 + index}`,
+        customerPhone: `0101234567${index % 10}`,
+        product: product.name,
+        supplier: product.supplier.name,
+        supplierCode: `SUP-${2000 + index}`,
         supplierPhone: `011${String(Math.floor(Math.random() * 100000000)).padStart(8, "0")}`,
-        supplierEmail: `supplier${i + 1}@example.com`,
-        supplierStatus: i % 3 === 0 ? "active" : "inactive",
+        supplierEmail: `supplier${index + 1}@example.com`,
+        supplierStatus: index % 3 === 0 ? "active" : "inactive",
         quantity: Math.floor(Math.random() * 5) + 1,
-        total: p.price * (Math.floor(Math.random() * 5) + 1),
+        total: product.price * (Math.floor(Math.random() * 5) + 1),
         commission: Math.floor(Math.random() * 500) + 50,
         status: ["pending", "processing", "shipped", "delivered", "cancelled"][Math.floor(Math.random() * 5)] as string,
         paymentStatus: ["مدفوع", "غير مدفوع", "مدفوع جزئياً"][Math.floor(Math.random() * 3)] as string,
@@ -288,9 +326,9 @@ export default function Orders() {
         time: `${String(Math.floor(Math.random() * 12) + 1).padStart(2, "0")}:${String(Math.floor(Math.random() * 60)).padStart(2, "0")} ${Math.random() > 0.5 ? "ص" : "م"}`,
         deliveryDate: new Date(Date.now() + Math.floor(Math.random() * 7) * 24 * 60 * 60 * 1000).toISOString(),
         lastUpdated: new Date(Date.now() - Math.floor(Math.random() * 5) * 24 * 60 * 60 * 1000).toISOString(),
-        shippingCompany: isDomestic ? domesticCompanies[i % domesticCompanies.length] : internationalCompanies[i % internationalCompanies.length],
-        shippingOffice: isDomestic ? domesticOffices[i % domesticOffices.length] : null,
-        country,
+        shippingCompany: isDomestic ? domesticCompanies[index % domesticCompanies.length] : internationalCompanies[index % internationalCompanies.length],
+        shippingOffice: isDomestic ? domesticOffices[index % domesticOffices.length] : null,
+        country: countryValue,
         governorate: city,
         area: areaName,
       };
@@ -303,20 +341,25 @@ export default function Orders() {
     setOrdersList(orders);
   }, [orders]);
 
+  const supplierOrders = useMemo(() => {
+    if (!supplier) return [];
+    return ordersList.filter(o => o.supplier === supplier.name);
+  }, [ordersList, supplier]);
+
   const filteredOrders = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10);
-    return ordersList.filter(o => {
+    return supplierOrders.filter(o => {
       const matchesOrderId = !orderId || o.id.includes(orderId);
       const matchesCustomer = !customerName || o.customer.includes(customerName);
       const matchesCustomerId = !customerId || o.customerId.includes(customerId);
       const matchesCustomerCode = !customerCode || o.customerCode.includes(customerCode);
       const matchesCustomerPhone = !customerPhone || o.customerPhone.includes(customerPhone);
       const matchesStatus = statusFilter === "all" || o.status === statusFilter;
-      const matchesSupplier = !supplierFilter || o.supplier.includes(supplierFilter);
-      const matchesSupplierCode = !supplierCodeFilter || o.supplierCode.includes(supplierCodeFilter);
       const matchesDate = !dateFilter || new Date(o.date).toISOString().slice(0, 10) === dateFilter;
       const matchesTime = !timeFilter || o.time.includes(timeFilter);
       const matchesPrice = !priceFilter || o.total >= Number(priceFilter);
+      const matchesPriceFrom = !priceFrom || o.total >= Number(priceFrom);
+      const matchesPriceTo = !priceTo || o.total <= Number(priceTo);
       const matchesCompany = shippingCompany === "all" || o.shippingCompany === shippingCompany;
       const matchesOffice = shippingOffice === "all" || o.shippingOffice === shippingOffice || (!o.shippingOffice && shippingOffice === "all");
       const matchesCountry = country === "all" || o.country === country;
@@ -327,10 +370,10 @@ export default function Orders() {
       const matchesDaily = !showDailyOnly || new Date(o.date).toISOString().slice(0, 10) === today;
 
       return matchesOrderId && matchesCustomer && matchesCustomerId && matchesCustomerCode && matchesCustomerPhone &&
-        matchesStatus && matchesSupplier && matchesSupplierCode && matchesDate && matchesTime && matchesPrice && matchesCompany && matchesOffice &&
+        matchesStatus && matchesDate && matchesTime && matchesPrice && matchesPriceFrom && matchesPriceTo && matchesCompany && matchesOffice &&
         matchesCountry && matchesGovernorate && matchesArea && matchesPaymentMethod && matchesPaymentStatus && matchesDaily;
     });
-  }, [ordersList, orderId, customerName, customerId, customerCode, customerPhone, statusFilter, supplierFilter, supplierCodeFilter, dateFilter, timeFilter, priceFilter, shippingCompany, shippingOffice, country, governorate, area, paymentMethod, paymentStatus, showDailyOnly]);
+  }, [supplierOrders, orderId, customerName, customerId, customerCode, customerPhone, statusFilter, dateFilter, timeFilter, priceFilter, priceFrom, priceTo, shippingCompany, shippingOffice, country, governorate, area, paymentMethod, paymentStatus, showDailyOnly]);
 
   const sortedOrders = useMemo(() => {
     return [...filteredOrders].sort((a, b) => {
@@ -361,7 +404,7 @@ export default function Orders() {
     totalCommission: sortedOrders.reduce((s, o) => s + o.commission, 0),
   }), [sortedOrders]);
 
-  const activeFilters = [orderId, customerName, customerId, customerCode, customerPhone, statusFilter !== "all" ? statusFilter : "", supplierFilter, supplierCodeFilter, dateFilter, timeFilter, priceFilter, shippingCompany !== "all" ? shippingCompany : "", shippingOffice !== "all" ? shippingOffice : "", country !== "all" ? country : "", governorate !== "all" ? governorate : "", area !== "all" ? area : "", paymentMethod !== "all" ? paymentMethod : "", paymentStatus !== "all" ? paymentStatus : ""].filter(Boolean).length;
+  const activeFilters = [orderId, customerName, customerId, customerCode, customerPhone, statusFilter !== "all" ? statusFilter : "", dateFilter, timeFilter, priceFilter, priceFrom, priceTo, shippingCompany !== "all" ? shippingCompany : "", shippingOffice !== "all" ? shippingOffice : "", country !== "all" ? country : "", governorate !== "all" ? governorate : "", area !== "all" ? area : "", paymentMethod !== "all" ? paymentMethod : "", paymentStatus !== "all" ? paymentStatus : "", showDailyOnly ? "daily" : ""].filter(Boolean).length;
 
   const clearAllFilters = () => {
     setOrderId("");
@@ -370,11 +413,11 @@ export default function Orders() {
     setCustomerCode("");
     setCustomerPhone("");
     setStatusFilter("all");
-    setSupplierFilter("");
-    setSupplierCodeFilter("");
     setDateFilter("");
     setTimeFilter("");
     setPriceFilter("");
+    setPriceFrom("");
+    setPriceTo("");
     setShippingCompany("all");
     setShippingOffice("all");
     setCountry("all");
@@ -382,54 +425,34 @@ export default function Orders() {
     setArea("all");
     setPaymentMethod("all");
     setPaymentStatus("all");
-  };
-
-  const getStatusBadge = (status: string) => {
-    const styles: Record<string, string> = {
-      pending: "bg-yellow-50 text-yellow-700 border border-yellow-200",
-      processing: "bg-blue-50 text-blue-700 border border-blue-200",
-      shipped: "bg-purple-50 text-purple-700 border border-purple-200",
-      delivered: "bg-green-50 text-green-700 border border-green-200",
-      cancelled: "bg-red-50 text-red-700 border border-red-200",
-    };
-    const labels: Record<string, string> = {
-      pending: "جديدة",
-      processing: "مجهزة",
-      shipped: "مشحونة",
-      delivered: "مكتملة",
-      cancelled: "ملغية",
-    };
-    return <Badge className={`${styles[status]} text-[11px]`}>{labels[status]}</Badge>;
-  };
-
-  const getPaymentStatusBadge = (status: string) => {
-    const styles: Record<string, string> = {
-      "مدفوع": "bg-green-100 text-green-800",
-      "غير مدفوع": "bg-red-100 text-red-800",
-      "مدفوع جزئياً": "bg-yellow-100 text-yellow-800",
-    };
-    return <Badge className={styles[status] || "bg-gray-100 text-gray-800"}>{status}</Badge>;
-  };
-
-  const getPaymentMethodBadge = (method: string) => {
-    const styles: Record<string, string> = {
-      "كاش": "bg-green-100 text-green-800",
-      "بطاقة ائتمان": "bg-blue-100 text-blue-800",
-      "تحويل بنفي": "bg-purple-100 text-purple-800",
-      "محفظة إلكترونية": "bg-orange-100 text-orange-800",
-      "فودافون كاش": "bg-red-100 text-red-800",
-    };
-    return <Badge className={styles[method] || "bg-gray-100 text-gray-800"}>{method}</Badge>;
+    setShowDailyOnly(false);
   };
 
   const totalPages = Math.ceil(sortedOrders.length / itemsPerPage);
   const paginatedOrders = sortedOrders.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
+  if (!supplier) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-4" dir="rtl">
+        <p className="text-muted-foreground">لم يتم العثور على المورد</p>
+        <Button variant="outline" onClick={() => setLocation("/suppliers")}>
+          <ArrowRight className="h-4 w-4 ml-2" /> العودة
+        </Button>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" dir="rtl">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div className="flex items-center gap-3">
-          <h1 className="text-3xl font-bold tracking-tight">الطلبات</h1>
+        <div className="flex items-center gap-3 min-w-0">
+          <Button variant="ghost" size="icon" onClick={() => setLocation(`/suppliers/${supplier.id}`)} className="h-9 w-9 shrink-0">
+            <ArrowRight className="h-5 w-5" />
+          </Button>
+          <div className="min-w-0">
+            <h1 className="text-3xl font-bold tracking-tight truncate">طلبات {supplier.name}</h1>
+            <p className="text-sm text-muted-foreground truncate">{supplier.companyName}</p>
+          </div>
           {activeFilters > 0 && (
             <Badge className="bg-primary text-primary-foreground">{activeFilters} فلتر نشط</Badge>
           )}
@@ -443,12 +466,6 @@ export default function Orders() {
             <Clock className="h-4 w-4 ml-1.5" />
             الطلبات اليومية
           </Button>
-          <Link href="/orders-charts">
-            <Button variant="outline" size="sm">
-              <BarChart2 className="h-4 w-4 ml-1.5" />
-              الرسم البياني
-            </Button>
-          </Link>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm">
@@ -478,7 +495,6 @@ export default function Orders() {
         </div>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-4 sm:grid-cols-4 md:grid-cols-8 gap-2">
         <div className="flex items-center gap-1.5 bg-card border border-border rounded-md px-2 py-1.5">
           <span className="text-[10px] text-muted-foreground">اجمالي الطلبات</span>
@@ -518,7 +534,6 @@ export default function Orders() {
         </div>
       </div>
 
-      {/* Filters */}
       <Card className="border-border/50">
         <CardContent className="p-2 space-y-2">
           <div className="flex items-center justify-between">
@@ -537,7 +552,10 @@ export default function Orders() {
             )}
           </div>
 
-          {/* Row 1 */}
+          <div className="mb-1 rounded-md border bg-muted/20 px-2 py-1 text-[10px] text-muted-foreground">
+            المورد الحالي: <span className="font-semibold text-foreground">{supplier.name}</span> - {supplier.companyName}
+          </div>
+
           <div className="grid grid-cols-7 gap-1.5">
             <div>
               <label className="text-[8px] text-muted-foreground mb-0.5 block">رقم الطلب</label>
@@ -572,28 +590,23 @@ export default function Orders() {
               </Select>
             </div>
             <div>
-              <label className="text-[8px] text-muted-foreground mb-0.5 block">اسم المورد</label>
-              <Input placeholder="اسم المورد" value={supplierFilter} onChange={(e) => setSupplierFilter(e.target.value)} className="h-8 text-[10px] px-2" />
-            </div>
-            <div>
-              <label className="text-[8px] text-muted-foreground mb-0.5 block">كود المورد</label>
-              <Input placeholder="SUP-XXXX" value={supplierCodeFilter} onChange={(e) => setSupplierCodeFilter(e.target.value)} className="h-8 text-[10px] px-2" />
-            </div>
-          </div>
-
-          {/* Row 2 */}
-          <div className="grid grid-cols-7 gap-1.5">
-            <div>
-              <label className="text-[8px] text-muted-foreground mb-0.5 block">التاريخ</label>
+              <label className="text-[8px] text-muted-foreground mb-0.5 block">تاريخ الطلب</label>
               <Input type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} className="h-8 text-[10px] px-2" />
             </div>
             <div>
               <label className="text-[8px] text-muted-foreground mb-0.5 block">الوقت</label>
               <Input type="time" value={timeFilter} onChange={(e) => setTimeFilter(e.target.value)} className="h-8 text-[10px] px-2" />
             </div>
+          </div>
+
+          <div className="grid grid-cols-7 gap-1.5">
             <div>
               <label className="text-[8px] text-muted-foreground mb-0.5 block">السعر من</label>
-              <Input type="number" placeholder="0" value={priceFilter} onChange={(e) => setPriceFilter(e.target.value)} className="h-8 text-[10px] px-2" />
+              <Input type="number" placeholder="0" value={priceFrom} onChange={(e) => setPriceFrom(e.target.value)} className="h-8 text-[10px] px-2" />
+            </div>
+            <div>
+              <label className="text-[8px] text-muted-foreground mb-0.5 block">السعر إلى</label>
+              <Input type="number" placeholder="999999" value={priceTo} onChange={(e) => setPriceTo(e.target.value)} className="h-8 text-[10px] px-2" />
             </div>
             <div>
               <label className="text-[8px] text-muted-foreground mb-0.5 block">شركة الشحن</label>
@@ -603,9 +616,7 @@ export default function Orders() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">الكل</SelectItem>
-                  {shippingCompanies.map(c => (
-                    <SelectItem key={c} value={c}>{c}</SelectItem>
-                  ))}
+                  {shippingCompanies.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -617,9 +628,7 @@ export default function Orders() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">الكل</SelectItem>
-                  {shippingOffices.map(o => (
-                    <SelectItem key={o} value={o}>{o}</SelectItem>
-                  ))}
+                  {shippingOffices.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -631,9 +640,7 @@ export default function Orders() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">الكل</SelectItem>
-                  {countries.map(c => (
-                    <SelectItem key={c} value={c}>{c}</SelectItem>
-                  ))}
+                  {countries.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -645,16 +652,10 @@ export default function Orders() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">الكل</SelectItem>
-                  {(governorates[country] || []).map(g => (
-                    <SelectItem key={g} value={g}>{g}</SelectItem>
-                  ))}
+                  {(governorates[country] || []).map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
-          </div>
-
-          {/* Row 3 */}
-          <div className="grid grid-cols-7 gap-1.5">
             <div>
               <label className="text-[8px] text-muted-foreground mb-0.5 block">المنطقة</label>
               <Select value={area} onValueChange={setArea} disabled={governorate === "all"}>
@@ -663,12 +664,13 @@ export default function Orders() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">الكل</SelectItem>
-                  {(areas[governorate] || []).map(a => (
-                    <SelectItem key={a} value={a}>{a}</SelectItem>
-                  ))}
+                  {(areas[governorate] || []).map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          <div className="grid grid-cols-7 gap-1.5">
             <div>
               <label className="text-[8px] text-muted-foreground mb-0.5 block">طريقة الدفع</label>
               <Select value={paymentMethod} onValueChange={setPaymentMethod}>
@@ -677,9 +679,7 @@ export default function Orders() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">الكل</SelectItem>
-                  {paymentMethods.map(m => (
-                    <SelectItem key={m} value={m}>{m}</SelectItem>
-                  ))}
+                  {paymentMethods.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -691,9 +691,7 @@ export default function Orders() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">الكل</SelectItem>
-                  {paymentStatuses.map(s => (
-                    <SelectItem key={s} value={s}>{s}</SelectItem>
-                  ))}
+                  {paymentStatuses.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -717,11 +715,14 @@ export default function Orders() {
                 </SelectContent>
               </Select>
             </div>
+            <div>
+              <label className="text-[8px] text-muted-foreground mb-0.5 block">السعر الأدنى</label>
+              <Input type="number" placeholder="0" value={priceFilter} onChange={(e) => setPriceFilter(e.target.value)} className="h-8 text-[10px] px-2" />
+            </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Table */}
       <Card>
         <CardContent className="p-0">
           <Table>
@@ -744,9 +745,9 @@ export default function Orders() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sortedOrders.length === 0 ? (
+              {paginatedOrders.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={13} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={14} className="text-center py-8 text-muted-foreground">
                     لا توجد طلبات مطابقة للفلاتر
                   </TableCell>
                 </TableRow>
@@ -818,7 +819,6 @@ export default function Orders() {
             </TableBody>
           </Table>
 
-          {/* Pagination */}
           {sortedOrders.length > 0 && (
             <div className="flex items-center justify-between px-4 py-3 border-t">
               <div className="flex items-center gap-2">
@@ -837,13 +837,7 @@ export default function Orders() {
                 <span className="text-[10px] text-muted-foreground">من {sortedOrders.length} طلب</span>
               </div>
               <div className="flex items-center gap-1">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-[10px] px-2"
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                >
+                <Button variant="outline" size="sm" className="h-7 text-[10px] px-2" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>
                   السابق
                 </Button>
                 {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
@@ -858,24 +852,12 @@ export default function Orders() {
                     page = currentPage - 2 + i;
                   }
                   return (
-                    <Button
-                      key={page}
-                      variant={currentPage === page ? "default" : "outline"}
-                      size="sm"
-                      className="h-7 w-7 text-[10px] p-0"
-                      onClick={() => setCurrentPage(page)}
-                    >
+                    <Button key={page} variant={currentPage === page ? "default" : "outline"} size="sm" className="h-7 w-7 text-[10px] p-0" onClick={() => setCurrentPage(page)}>
                       {page}
                     </Button>
                   );
                 })}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-7 text-[10px] px-2"
-                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                  disabled={currentPage === totalPages}
-                >
+                <Button variant="outline" size="sm" className="h-7 text-[10px] px-2" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}>
                   التالي
                 </Button>
               </div>
@@ -884,7 +866,6 @@ export default function Orders() {
         </CardContent>
       </Card>
 
-      {/* Edit Dialog */}
       <Dialog open={!!editingOrder} onOpenChange={() => setEditingOrder(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -893,39 +874,20 @@ export default function Orders() {
           <div className="space-y-3">
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">اسم العميل</label>
-              <Input
-                value={editForm.customer}
-                onChange={(e) => setEditForm({ ...editForm, customer: e.target.value })}
-                className="h-8 text-xs"
-              />
+              <Input value={editForm.customer} onChange={(e) => setEditForm({ ...editForm, customer: e.target.value })} className="h-8 text-xs" />
             </div>
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">رقم الهاتف</label>
-              <Input
-                value={editForm.customerPhone}
-                onChange={(e) => setEditForm({ ...editForm, customerPhone: e.target.value })}
-                className="h-8 text-xs"
-                dir="ltr"
-              />
+              <Input value={editForm.customerPhone} onChange={(e) => setEditForm({ ...editForm, customerPhone: e.target.value })} className="h-8 text-xs" dir="ltr" />
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">الكمية</label>
-                <Input
-                  type="number"
-                  value={editForm.quantity}
-                  onChange={(e) => setEditForm({ ...editForm, quantity: Number(e.target.value) })}
-                  className="h-8 text-xs"
-                />
+                <Input type="number" value={editForm.quantity} onChange={(e) => setEditForm({ ...editForm, quantity: Number(e.target.value) })} className="h-8 text-xs" />
               </div>
               <div>
                 <label className="text-xs text-muted-foreground mb-1 block">الإجمالي</label>
-                <Input
-                  type="number"
-                  value={editForm.total}
-                  onChange={(e) => setEditForm({ ...editForm, total: Number(e.target.value) })}
-                  className="h-8 text-xs"
-                />
+                <Input type="number" value={editForm.total} onChange={(e) => setEditForm({ ...editForm, total: Number(e.target.value) })} className="h-8 text-xs" />
               </div>
             </div>
             <div>
@@ -951,9 +913,7 @@ export default function Orders() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {paymentMethods.map(m => (
-                      <SelectItem key={m} value={m}>{m}</SelectItem>
-                    ))}
+                    {paymentMethods.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -964,9 +924,7 @@ export default function Orders() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {paymentStatuses.map(s => (
-                      <SelectItem key={s} value={s}>{s}</SelectItem>
-                    ))}
+                    {paymentStatuses.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -974,26 +932,16 @@ export default function Orders() {
           </div>
           <DialogFooter>
             <Button variant="outline" size="sm" onClick={() => setEditingOrder(null)}>إلغاء</Button>
-            <Button
-              size="sm"
-              onClick={() => {
-                setOrdersList(prev =>
-                  prev.map(o =>
-                    o.id === editingOrder.id
-                      ? { ...o, ...editForm, lastUpdated: new Date().toISOString() }
-                      : o
-                  )
-                );
-                setEditingOrder(null);
-              }}
-            >
+            <Button size="sm" onClick={() => {
+              setOrdersList(prev => prev.map(o => o.id === editingOrder.id ? { ...o, ...editForm, lastUpdated: new Date().toISOString() } : o));
+              setEditingOrder(null);
+            }}>
               حفظ التعديلات
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Delete Dialog */}
       <Dialog open={!!deletingOrder} onOpenChange={() => setDeletingOrder(null)}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
@@ -1004,27 +952,20 @@ export default function Orders() {
           </p>
           <DialogFooter>
             <Button variant="outline" size="sm" onClick={() => setDeletingOrder(null)}>إلغاء</Button>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => {
-                setOrdersList(prev => prev.filter(o => o.id !== deletingOrder.id));
-                setDeletingOrder(null);
-              }}
-            >
+            <Button variant="destructive" size="sm" onClick={() => {
+              setOrdersList(prev => prev.filter(o => o.id !== deletingOrder.id));
+              setDeletingOrder(null);
+            }}>
               حذف
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Status Change Dialog */}
       <Dialog open={!!statusChangingOrder} onOpenChange={() => { setStatusChangingOrder(null); setShippingManifestImage(null); }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>
-              {statusChangingOrder?.status === "shipped" ? "بوليصة الشحن" : "تغيير حالة الطلب"}
-            </DialogTitle>
+            <DialogTitle>{statusChangingOrder?.status === "shipped" ? "بوليصة الشحن" : "تغيير حالة الطلب"}</DialogTitle>
           </DialogHeader>
           {statusChangingOrder?.status === "shipped" ? (
             <div className="space-y-3">

@@ -1,5 +1,5 @@
 import { useParams, useLocation } from "wouter";
-import { useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useSuppliers, useProducts, adminStore } from "@/store";
 import type { Product } from "@/store";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -11,11 +11,13 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import {
   ArrowRight, Star, Phone, MessageCircle, Mail,
   Building2, Briefcase, Globe, Wallet, CreditCard, Calendar,
   PackageX, ShoppingCart, ClipboardList, TruckIcon, XCircle, RotateCcw, CheckCircle2, Package,
-  MapPin, Clock, MessageSquare, ArrowLeft, Bell, Search, Eye, Edit, ChevronDown, X, Trash2, TrendingUp, Upload
+  MapPin, Clock, MessageSquare, ArrowLeft, Bell, Search, Eye, Edit, ChevronDown, X, Trash2, TrendingUp, Upload, MoreHorizontal
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 
@@ -51,6 +53,130 @@ export default function SupplierDetail() {
   const [productStatusFilter, setProductStatusFilter] = useState("all");
   const [productSortBy, setProductSortBy] = useState("newest");
 
+  // Order filter states
+  const [orderSearch, setOrderSearch] = useState("");
+  const [orderStatusFilter, setOrderStatusFilter] = useState("all");
+  const [orderPaymentStatus, setOrderPaymentStatus] = useState("all");
+  const [orderSortBy, setOrderSortBy] = useState("newest");
+  const [orderCurrentPage, setOrderCurrentPage] = useState(1);
+  const [orderItemsPerPage, setOrderItemsPerPage] = useState(10);
+  const [supplierOrdersList, setSupplierOrdersList] = useState<any[]>([]);
+  const [editingSupplierOrder, setEditingSupplierOrder] = useState<any>(null);
+  const [deletingSupplierOrder, setDeletingSupplierOrder] = useState<any>(null);
+  const [statusChangingSupplierOrder, setStatusChangingSupplierOrder] = useState<any>(null);
+  const [shippingManifestImage, setShippingManifestImage] = useState<string | null>(null);
+  const [editSupplierOrderForm, setEditSupplierOrderForm] = useState({
+    customer: "",
+    customerPhone: "",
+    quantity: 1,
+    total: 0,
+    status: "",
+    paymentMethod: "",
+    paymentStatus: "",
+  });
+
+  const getStatusBadge = (status: string) => {
+    const styles: Record<string, string> = {
+      pending: "bg-yellow-50 text-yellow-700 border border-yellow-200",
+      processing: "bg-blue-50 text-blue-700 border border-blue-200",
+      shipped: "bg-purple-50 text-purple-700 border border-purple-200",
+      delivered: "bg-green-50 text-green-700 border border-green-200",
+      cancelled: "bg-red-50 text-red-700 border border-red-200",
+    };
+    const labels: Record<string, string> = {
+      pending: "جديدة",
+      processing: "مجهزة",
+      shipped: "مشحونة",
+      delivered: "مكتملة",
+      cancelled: "ملغية",
+    };
+    return <Badge className={`${styles[status]} text-[11px]`}>{labels[status]}</Badge>;
+  };
+
+  const getPaymentStatusBadge = (status: string) => {
+    const styles: Record<string, string> = {
+      "مدفوع": "bg-green-100 text-green-800",
+      "غير مدفوع": "bg-red-100 text-red-800",
+      "مدفوع جزئياً": "bg-yellow-100 text-yellow-800",
+    };
+    return <Badge className={styles[status] || "bg-gray-100 text-gray-800"}>{status}</Badge>;
+  };
+
+  const getPaymentMethodBadge = (method: string) => {
+    const styles: Record<string, string> = {
+      "كاش": "bg-green-100 text-green-800",
+      "بطاقة ائتمان": "bg-blue-100 text-blue-800",
+      "تحويل بنفي": "bg-purple-100 text-purple-800",
+      "محفظة إلكترونية": "bg-orange-100 text-orange-800",
+      "فودافون كاش": "bg-red-100 text-red-800",
+    };
+    return <Badge className={styles[method] || "bg-gray-100 text-gray-800"}>{method}</Badge>;
+  };
+
+  const paymentMethods = ["كاش", "بطاقة ائتمان", "تحويل بنفي", "محفظة إلكترونية", "فودافون كاش"];
+  const paymentStatuses = ["مدفوع", "غير مدفوع", "مدفوع جزئياً"];
+  const customerNames = ["أحمد محمد", "فاطمة علي", "محمد حسن", "سارة أحمد", "خالد محمود", "نورا سعيد", "عمر حسين", "ريم عبد الله", "ياسر إبراهيم", "هدى عادل"];
+
+  const supplierProducts = useMemo(
+    () => (supplier ? products.filter(p => p.supplier.id === supplier.id) : []),
+    [products, supplier?.id]
+  );
+
+  const supplierOrders = useMemo(() => {
+    if (supplierProducts.length === 0) return [];
+    const statuses = ["pending", "processing", "shipped", "delivered", "cancelled"];
+    const paymentStatuses = ["مدفوع", "غير مدفوع", "مدفوع جزئياً"];
+    return supplierProducts.slice(0, 20).map((p, i) => {
+      const qty = Math.floor(Math.random() * 5) + 1;
+      return {
+        id: `ORD-${1000 + i}`,
+        customer: customerNames[i % customerNames.length],
+        customerPhone: `0101234567${i % 10}`,
+        product: p.name,
+        quantity: qty,
+        total: p.price * qty,
+        commission: Math.floor(Math.random() * 500) + 50,
+        status: statuses[i % statuses.length],
+        paymentStatus: paymentStatuses[i % paymentStatuses.length],
+        paymentMethod: paymentMethods[i % paymentMethods.length],
+        shippingCompany: ["سمسا", "آرامكس", "فيديكس", "جانيت"][i % 4],
+        country: "مصر",
+        governorate: ["القاهرة", "الجيزة", "الإسكندرية"][i % 3],
+        area: ["مدينة نصر", "المعادي", "الزمالك"][i % 3],
+        date: new Date(Date.now() - Math.floor(Math.random() * 30) * 24 * 60 * 60 * 1000).toISOString(),
+        time: `${String(Math.floor(Math.random() * 12) + 1).padStart(2, "0")}:${String(Math.floor(Math.random() * 60)).padStart(2, "0")} ${Math.random() > 0.5 ? "ص" : "م"}`,
+      };
+    });
+  }, [supplierProducts]);
+
+  useEffect(() => {
+    setSupplierOrdersList(supplierOrders);
+  }, [supplierOrders]);
+
+  const filteredSupplierOrders = useMemo(() => {
+    return supplierOrdersList.filter(o => {
+      const matchesSearch = !orderSearch || o.id.includes(orderSearch) || o.customer.includes(orderSearch) || o.product.includes(orderSearch);
+      const matchesStatus = orderStatusFilter === "all" || o.status === orderStatusFilter;
+      const matchesPayment = orderPaymentStatus === "all" || o.paymentStatus === orderPaymentStatus;
+      return matchesSearch && matchesStatus && matchesPayment;
+    });
+  }, [supplierOrdersList, orderSearch, orderStatusFilter, orderPaymentStatus]);
+
+  const sortedSupplierOrders = useMemo(() => {
+    return [...filteredSupplierOrders].sort((a, b) => {
+      switch (orderSortBy) {
+        case "newest": return new Date(b.date).getTime() - new Date(a.date).getTime();
+        case "oldest": return new Date(a.date).getTime() - new Date(b.date).getTime();
+        case "highest": return b.total - a.total;
+        case "lowest": return a.total - b.total;
+        default: return 0;
+      }
+    });
+  }, [filteredSupplierOrders, orderSortBy]);
+
+  const orderTotalPages = Math.ceil(sortedSupplierOrders.length / orderItemsPerPage);
+  const paginatedSupplierOrders = sortedSupplierOrders.slice((orderCurrentPage - 1) * orderItemsPerPage, orderCurrentPage * orderItemsPerPage);
+
   if (!supplier) {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-4">
@@ -61,8 +187,6 @@ export default function SupplierDetail() {
       </div>
     );
   }
-
-  const supplierProducts = products.filter(p => p.supplier.id === supplier.id);
   const activeCount = supplierProducts.filter(p => p.status === "active").length;
   const hiddenCount = supplierProducts.filter(p => p.status === "hidden").length;
   const outOfStock = supplierProducts.filter(p => p.quantity < 5).length;
@@ -436,7 +560,15 @@ export default function SupplierDetail() {
                   <ShoppingCart className="h-4 w-4 text-purple-600" />
                   <span className="text-sm font-bold text-purple-700">الطلبات</span>
                 </div>
-                <ArrowLeft className="h-4 w-4 text-purple-600" />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 text-purple-600 hover:text-purple-700 hover:bg-purple-100/70"
+                  onClick={() => setLocation(`/suppliers/${supplier.id}/orders`)}
+                  aria-label="عرض طلبات المورد"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
               </div>
             </CardHeader>
             <CardContent className="p-3 space-y-2">
@@ -833,6 +965,388 @@ export default function SupplierDetail() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Orders Section */}
+      <Card>
+        <CardHeader className="p-3 pb-2 bg-purple-50 dark:bg-purple-950/30 border-b border-purple-100 dark:border-purple-900">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <ShoppingCart className="h-4 w-4 text-purple-600" />
+              <span className="text-sm font-bold text-purple-700">طلبات المورد - {supplier.name}</span>
+              <span className="text-xs font-bold text-purple-800 bg-purple-100 dark:bg-purple-900/50 px-2 py-0.5 rounded">{filteredSupplierOrders.length} طلب</span>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 gap-1.5 text-xs"
+              onClick={() => setLocation(`/suppliers/${supplier.id}/orders`)}
+            >
+              كل الطلبات
+              <ArrowLeft className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="p-3 space-y-3">
+          {/* Filters */}
+          <div className="flex flex-wrap gap-2">
+            <div className="relative flex-1 min-w-[180px]">
+              <Search className="absolute right-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input placeholder="بحث برقم الطلب أو اسم العميل أو المنتج..." value={orderSearch}
+                onChange={(e) => { setOrderSearch(e.target.value); setOrderCurrentPage(1); }} className="pr-8 h-8 text-xs" />
+            </div>
+            <Select value={orderStatusFilter} onValueChange={(v) => { setOrderStatusFilter(v); setOrderCurrentPage(1); }}>
+              <SelectTrigger className="w-[100px] h-8 text-xs">
+                <SelectValue placeholder="الحالة" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">الكل</SelectItem>
+                <SelectItem value="pending">جديدة</SelectItem>
+                <SelectItem value="processing">مجهزة</SelectItem>
+                <SelectItem value="shipped">مشحونة</SelectItem>
+                <SelectItem value="delivered">مكتملة</SelectItem>
+                <SelectItem value="cancelled">ملغية</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={orderPaymentStatus} onValueChange={(v) => { setOrderPaymentStatus(v); setOrderCurrentPage(1); }}>
+              <SelectTrigger className="w-[120px] h-8 text-xs">
+                <SelectValue placeholder="حالة الدفع" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">الكل</SelectItem>
+                <SelectItem value="مدفوع">مدفوع</SelectItem>
+                <SelectItem value="غير مدفوع">غير مدفوع</SelectItem>
+                <SelectItem value="مدفوع جزئياً">مدفوع جزئياً</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={orderSortBy} onValueChange={setOrderSortBy}>
+              <SelectTrigger className="w-[110px] h-8 text-xs">
+                <SelectValue placeholder="الترتيب" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="newest">الأحدث</SelectItem>
+                <SelectItem value="oldest">الأقدم</SelectItem>
+                <SelectItem value="highest">الأعلى سعراً</SelectItem>
+                <SelectItem value="lowest">الأقل سعراً</SelectItem>
+              </SelectContent>
+            </Select>
+            {(orderSearch || orderStatusFilter !== "all" || orderPaymentStatus !== "all") && (
+              <Button variant="ghost" size="sm" className="h-8 text-xs text-muted-foreground gap-1"
+                onClick={() => { setOrderSearch(""); setOrderStatusFilter("all"); setOrderPaymentStatus("all"); setOrderCurrentPage(1); }}>
+                <X className="h-3 w-3" />مسح
+              </Button>
+            )}
+          </div>
+
+          {/* Orders Table */}
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-right text-xs">رقم الطلب</TableHead>
+                  <TableHead className="text-right text-xs">اسم العميل</TableHead>
+                  <TableHead className="text-right text-xs">رقم الهاتف</TableHead>
+                  <TableHead className="text-center text-xs">الكمية</TableHead>
+                  <TableHead className="text-right text-xs">الإجمالي</TableHead>
+                  <TableHead className="text-right text-xs">العمولة</TableHead>
+                  <TableHead className="text-right text-xs">طريقة الدفع</TableHead>
+                  <TableHead className="text-right text-xs">حالة الدفع</TableHead>
+                  <TableHead className="text-right text-xs">الشحن</TableHead>
+                  <TableHead className="text-right text-xs">الموقع</TableHead>
+                  <TableHead className="text-right text-xs">الحالة</TableHead>
+                  <TableHead className="text-right text-xs">التاريخ</TableHead>
+                  <TableHead className="text-center text-xs">إجراءات</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {paginatedSupplierOrders.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={13} className="text-center py-8 text-muted-foreground">
+                      <ShoppingCart className="h-12 w-12 mx-auto mb-2 opacity-30" />
+                      <p className="text-sm">لا توجد طلبات مطابقة</p>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  paginatedSupplierOrders.map((order) => (
+                    <TableRow key={order.id} className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => setLocation(`/orders/${order.id}?status=${order.status}`)}>
+                      <TableCell className="font-mono text-xs text-right">{order.id}</TableCell>
+                      <TableCell className="text-xs text-right">{order.customer}</TableCell>
+                      <TableCell className="text-xs text-right" dir="ltr">+20 {order.customerPhone}</TableCell>
+                      <TableCell className="text-xs text-center font-semibold text-blue-600">{order.quantity}</TableCell>
+                      <TableCell className="text-xs text-right font-semibold text-emerald-600">{order.total.toLocaleString("ar-EG")} ج.م</TableCell>
+                      <TableCell className="text-xs text-right font-semibold text-violet-600">{order.commission.toLocaleString("ar-EG")} ج.م</TableCell>
+                      <TableCell>{getPaymentMethodBadge(order.paymentMethod)}</TableCell>
+                      <TableCell>{getPaymentStatusBadge(order.paymentStatus)}</TableCell>
+                      <TableCell className="text-xs text-right leading-tight">
+                        <div className="text-amber-800 font-semibold">{order.shippingCompany}</div>
+                      </TableCell>
+                      <TableCell className="text-xs text-right leading-tight">
+                        <div className="text-cyan-800 font-semibold">{order.country}</div>
+                        <div className="text-cyan-600">{order.governorate} - {order.area}</div>
+                      </TableCell>
+                      <TableCell>{getStatusBadge(order.status)}</TableCell>
+                      <TableCell className="text-xs text-right">{new Date(order.date).toLocaleDateString("ar-EG")} {order.time}</TableCell>
+                      <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="text-xs">
+                            <DropdownMenuItem onClick={() => setLocation(`/orders/${order.id}?status=${order.status}`)}>
+                              <Eye className="h-3.5 w-3.5 ml-1.5" />
+                              تفاصيل الطلب
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => {
+                              setEditingSupplierOrder(order);
+                              setEditSupplierOrderForm({
+                                customer: order.customer,
+                                customerPhone: order.customerPhone,
+                                quantity: order.quantity,
+                                total: order.total,
+                                status: order.status,
+                                paymentMethod: order.paymentMethod,
+                                paymentStatus: order.paymentStatus,
+                              });
+                            }}>
+                              <Edit className="h-3.5 w-3.5 ml-1.5" />
+                              تعديل الطلب
+                            </DropdownMenuItem>
+                            {order.status !== "delivered" && order.status !== "cancelled" && (
+                              <DropdownMenuItem onClick={() => setStatusChangingSupplierOrder(order)}>
+                                <TruckIcon className="h-3.5 w-3.5 ml-1.5" />
+                                {order.status === "shipped" ? "بوليصة الشحن" : "تغيير حالة الطلب"}
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuItem onClick={() => setDeletingSupplierOrder(order)} className="text-red-600">
+                              <Trash2 className="h-3.5 w-3.5 ml-1.5" />
+                              حذف الطلب
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Pagination */}
+          {sortedSupplierOrders.length > 0 && (
+            <div className="flex items-center justify-between px-2 py-2">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">عرض</span>
+                <Select value={String(orderItemsPerPage)} onValueChange={(v) => { setOrderItemsPerPage(Number(v)); setOrderCurrentPage(1); }}>
+                  <SelectTrigger className="w-[65px] h-7 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="5">5</SelectItem>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="20">20</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                  </SelectContent>
+                </Select>
+                <span className="text-xs text-muted-foreground">
+                  من أصل {filteredSupplierOrders.length} طلب
+                </span>
+              </div>
+              <div className="flex items-center gap-1">
+                <Button variant="outline" size="sm" className="h-7 w-7 p-0 text-xs"
+                  disabled={orderCurrentPage === 1} onClick={() => setOrderCurrentPage(p => Math.max(1, p - 1))}>
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Button>
+                {Array.from({ length: Math.min(orderTotalPages, 5) }).map((_, i) => {
+                  const page = i + 1;
+                  return (
+                    <Button key={page} variant={orderCurrentPage === page ? "default" : "outline"} size="sm"
+                      className="h-7 w-7 p-0 text-xs" onClick={() => setOrderCurrentPage(page)}>
+                      {page}
+                    </Button>
+                  );
+                })}
+                <Button variant="outline" size="sm" className="h-7 w-7 p-0 text-xs"
+                  disabled={orderCurrentPage === orderTotalPages} onClick={() => setOrderCurrentPage(p => Math.min(orderTotalPages, p + 1))}>
+                  <ArrowLeft className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Edit Dialog */}
+      <Dialog open={!!editingSupplierOrder} onOpenChange={() => setEditingSupplierOrder(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>تعديل الطلب {editingSupplierOrder?.id}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">اسم العميل</label>
+              <Input value={editSupplierOrderForm.customer} onChange={(e) => setEditSupplierOrderForm({ ...editSupplierOrderForm, customer: e.target.value })} className="h-8 text-xs" />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">رقم الهاتف</label>
+              <Input value={editSupplierOrderForm.customerPhone} onChange={(e) => setEditSupplierOrderForm({ ...editSupplierOrderForm, customerPhone: e.target.value })} className="h-8 text-xs" dir="ltr" />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">الكمية</label>
+                <Input type="number" value={editSupplierOrderForm.quantity} onChange={(e) => setEditSupplierOrderForm({ ...editSupplierOrderForm, quantity: Number(e.target.value) })} className="h-8 text-xs" />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">الإجمالي</label>
+                <Input type="number" value={editSupplierOrderForm.total} onChange={(e) => setEditSupplierOrderForm({ ...editSupplierOrderForm, total: Number(e.target.value) })} className="h-8 text-xs" />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">حالة الطلب</label>
+              <Select value={editSupplierOrderForm.status} onValueChange={(v) => setEditSupplierOrderForm({ ...editSupplierOrderForm, status: v })}>
+                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pending">جديدة</SelectItem>
+                  <SelectItem value="processing">مجهزة</SelectItem>
+                  <SelectItem value="shipped">مشحونة</SelectItem>
+                  <SelectItem value="delivered">مكتملة</SelectItem>
+                  <SelectItem value="cancelled">ملغية</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">طريقة الدفع</label>
+                <Select value={editSupplierOrderForm.paymentMethod} onValueChange={(v) => setEditSupplierOrderForm({ ...editSupplierOrderForm, paymentMethod: v })}>
+                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>{paymentMethods.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">حالة الدفع</label>
+                <Select value={editSupplierOrderForm.paymentStatus} onValueChange={(v) => setEditSupplierOrderForm({ ...editSupplierOrderForm, paymentStatus: v })}>
+                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>{paymentStatuses.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setEditingSupplierOrder(null)}>إلغاء</Button>
+            <Button size="sm" onClick={() => {
+              setSupplierOrdersList(prev => prev.map(o => o.id === editingSupplierOrder.id ? { ...o, ...editSupplierOrderForm, lastUpdated: new Date().toISOString() } : o));
+              setEditingSupplierOrder(null);
+            }}>حفظ التعديلات</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Dialog */}
+      <Dialog open={!!deletingSupplierOrder} onOpenChange={() => setDeletingSupplierOrder(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>حذف الطلب</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            هل أنت متأكد من حذف الطلب <span className="font-semibold">{deletingSupplierOrder?.id}</span>؟ لا يمكن التراجع عن هذا الإجراء.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setDeletingSupplierOrder(null)}>إلغاء</Button>
+            <Button variant="destructive" size="sm" onClick={() => {
+              setSupplierOrdersList(prev => prev.filter(o => o.id !== deletingSupplierOrder.id));
+              setDeletingSupplierOrder(null);
+            }}>حذف</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Status Change Dialog */}
+      <Dialog open={!!statusChangingSupplierOrder} onOpenChange={() => { setStatusChangingSupplierOrder(null); setShippingManifestImage(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{statusChangingSupplierOrder?.status === "shipped" ? "بوليصة الشحن" : "تغيير حالة الطلب"}</DialogTitle>
+          </DialogHeader>
+          {statusChangingSupplierOrder?.status === "shipped" ? (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                إصدار بوليصة الشحن للطلب <span className="font-semibold">{statusChangingSupplierOrder?.id}</span> سيُغيّر حالة الطلب إلى مكتملة.
+              </p>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">صورة بوليصة الشحن</label>
+                <div className="border-2 border-dashed rounded-lg p-4 text-center">
+                  {shippingManifestImage ? (
+                    <div className="space-y-2">
+                      <img src={shippingManifestImage} alt="بوليصة الشحن" className="max-h-40 mx-auto rounded" />
+                      <Button variant="ghost" size="sm" className="text-xs text-red-500" onClick={() => setShippingManifestImage(null)}>
+                        إزالة الصورة
+                      </Button>
+                    </div>
+                  ) : (
+                    <label className="cursor-pointer block">
+                      <input type="file" accept="image/*" className="hidden" onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onload = () => setShippingManifestImage(reader.result as string);
+                          reader.readAsDataURL(file);
+                        }
+                      }} />
+                      <div className="space-y-1">
+                        <TruckIcon className="h-6 w-6 mx-auto text-muted-foreground" />
+                        <p className="text-xs text-muted-foreground">اضغط لرفع صورة البوليصة</p>
+                      </div>
+                    </label>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {statusChangingSupplierOrder?.status === "pending" && (
+                <Button variant="outline" size="sm" className="w-full justify-start" onClick={() => {
+                  setSupplierOrdersList(prev => prev.map(o => o.id === statusChangingSupplierOrder.id ? { ...o, status: "processing", lastUpdated: new Date().toISOString() } : o));
+                  setStatusChangingSupplierOrder(null);
+                }}>
+                  <CheckCircle2 className="h-3.5 w-3.5 ml-1.5 text-blue-500" />
+                  مجهزة
+                </Button>
+              )}
+              {statusChangingSupplierOrder?.status === "processing" && (
+                <Button variant="outline" size="sm" className="w-full justify-start" onClick={() => {
+                  setSupplierOrdersList(prev => prev.map(o => o.id === statusChangingSupplierOrder.id ? { ...o, status: "shipped", lastUpdated: new Date().toISOString() } : o));
+                  setStatusChangingSupplierOrder(null);
+                }}>
+                  <TruckIcon className="h-3.5 w-3.5 ml-1.5 text-purple-500" />
+                  مشحونة
+                </Button>
+              )}
+              {statusChangingSupplierOrder?.status === "pending" && (
+                <Button variant="outline" size="sm" className="w-full justify-start text-red-600" onClick={() => {
+                  setSupplierOrdersList(prev => prev.map(o => o.id === statusChangingSupplierOrder.id ? { ...o, status: "cancelled", lastUpdated: new Date().toISOString() } : o));
+                  setStatusChangingSupplierOrder(null);
+                }}>
+                  <XCircle className="h-3.5 w-3.5 ml-1.5" />
+                  ملغية
+                </Button>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setStatusChangingSupplierOrder(null)}>إلغاء</Button>
+            {statusChangingSupplierOrder?.status === "shipped" && (
+              <Button size="sm" disabled={!shippingManifestImage} onClick={() => {
+                setSupplierOrdersList(prev => prev.map(o => o.id === statusChangingSupplierOrder.id ? { ...o, status: "delivered", shippingManifest: shippingManifestImage, lastUpdated: new Date().toISOString() } : o));
+                setShippingManifestImage(null);
+                setStatusChangingSupplierOrder(null);
+              }}>
+                <CheckCircle2 className="h-3.5 w-3.5 ml-1.5" />
+                إرسال البوليصة
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Supplier Dialog */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
