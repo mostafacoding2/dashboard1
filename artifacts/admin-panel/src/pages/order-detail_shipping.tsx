@@ -144,14 +144,14 @@ function printOrder(order: any) {
   printWindow.print();
 }
 
-export default function OrderDetail() {
+export default function ShippingOrderDetail() {
   const [, setLocation] = useLocation();
   const params = useParams();
   const orderId = params.id;
   const urlParams = new URLSearchParams(window.location.search);
   const navStatus = urlParams.get("status");
-  const isReadOnly = urlParams.get("readonly") === "true";
-  const backTo = urlParams.get("back") || "/orders";
+  const isReadOnly = true;
+  const backTo = urlParams.get("back") || "/shipping-office";
   const products = useProducts();
   const [response, setResponse] = useState<OrderDetailsEntity | null>(null);
   const [editingItem, setEditingItem] = useState<OrderDetailsItemEntity | null>(null);
@@ -166,8 +166,9 @@ export default function OrderDetail() {
   const [selectedStatus, setSelectedStatus] = useState<string>("");
 
   useEffect(() => {
-    const idx = Number(orderId?.replace("ORD-", "")) - 1000;
-    if (idx >= 0 && idx < products.length) {
+    const rawIdx = Number(orderId?.replace("ORD-", "")) - 1000;
+    const idx = rawIdx >= 0 ? rawIdx % products.length : 0;
+    if (products.length > 0) {
       const p = products[idx];
       const mockResponse: OrderDetailsEntity = {
         statusCode: 200,

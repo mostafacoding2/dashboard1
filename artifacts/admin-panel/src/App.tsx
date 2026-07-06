@@ -18,10 +18,16 @@ import Customers from "@/pages/customers";
 import Orders from "@/pages/orders";
 import OrdersCharts from "@/pages/orders-charts";
 import OrderDetail from "@/pages/order-detail";
+import ShippingOrderDetail from "@/pages/order-detail_shipping";
 import Returns from "@/pages/returns";
 import Marketers from "@/pages/marketers";
 import ShippingCompanies from "@/pages/shipping-companies";
 import ShippingOffice from "@/pages/shipping-office";
+import AddShippingOffice from "@/pages/add-shipping-office";
+import AddShippingCompany from "@/pages/add-shipping-company";
+import EditShippingOffice from "@/pages/edit-shipping-office";
+import ShippingOfficeDetails from "@/pages/shipping-office-details";
+import ShippingCompanyDetails from "@/pages/shipping-company-details";
 import Chat from "@/pages/chat";
 import Complaints from "@/pages/complaints";
 import Notifications from "@/pages/notifications";
@@ -49,10 +55,16 @@ function Router() {
       <Route path="/orders" component={Orders} />
       <Route path="/orders-charts" component={OrdersCharts} />
       <Route path="/orders/:id" component={OrderDetail} />
+      <Route path="/shipping-order-detail/:id" component={ShippingOrderDetail} />
       <Route path="/returns" component={Returns} />
       <Route path="/marketers" component={Marketers} />
       <Route path="/shipping-companies" component={ShippingCompanies} />
+      <Route path="/shipping-companies/add" component={AddShippingCompany} />
+      <Route path="/shipping-companies/:id" component={ShippingCompanyDetails} />
       <Route path="/shipping-office" component={ShippingOffice} />
+      <Route path="/shipping-office/add" component={AddShippingOffice} />
+      <Route path="/shipping-office/edit/:id" component={EditShippingOffice} />
+      <Route path="/shipping-office/:id" component={ShippingOfficeDetails} />
       <Route path="/employees" component={Employees} />
       <Route path="/payments" component={Payments} />
       <Route path="/activity-log" component={ActivityLog} />
